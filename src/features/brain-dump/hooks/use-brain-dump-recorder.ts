@@ -5,6 +5,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { generatePlatformDraftsAction } from "@/features/agent-engine/actions"
 import { analyzeTranscriptAction } from "@/features/brain-dump/actions"
 import { transcribeAudioBlob } from "@/features/brain-dump/service"
+import {
+  getWorkflowSnapshot,
+  useWorkflowStore,
+} from "@/features/workflow/store"
 import type { AgentOutput, ContentBrief } from "@/lib/types/domain"
 
 export type BrainDumpStage =
@@ -68,16 +72,25 @@ function stopStream(stream: MediaStream | null) {
 
 export function useBrainDumpRecorder(): UseBrainDumpRecorderState &
   UseBrainDumpRecorderApi {
+  const initialWorkflow = getWorkflowSnapshot()
+  const setBrainDumpResult = useWorkflowStore((state) => state.setBrainDumpResult)
+  const setWorkflowDrafts = useWorkflowStore((state) => state.setDrafts)
+  const resetWorkflow = useWorkflowStore((state) => state.resetWorkflow)
+
   const isUnmountingRef = useRef(false)
   const recorderRef = useRef<MediaRecorder | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const chunksRef = useRef<Blob[]>([])
 
-  const [stage, setStage] = useState<BrainDumpStage>("idle")
+  const [stage, setStage] = useState<BrainDumpStage>(
+    initialWorkflow.brief ? "ready" : "idle"
+  )
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [transcript, setTranscript] = useState("")
-  const [brief, setBrief] = useState<ContentBrief | null>(null)
-  const [platformDrafts, setPlatformDrafts] = useState<AgentOutput[]>([])
+  const [transcript, setTranscript] = useState(initialWorkflow.transcript)
+  const [brief, setBrief] = useState<ContentBrief | null>(initialWorkflow.brief)
+  const [platformDrafts, setPlatformDrafts] = useState<AgentOutput[]>(
+    initialWorkflow.drafts
+  )
   const [isGeneratingDrafts, setIsGeneratingDrafts] = useState(false)
   const [platformDraftErrorMessage, setPlatformDraftErrorMessage] = useState<
     string | null
@@ -133,6 +146,7 @@ export function useBrainDumpRecorder(): UseBrainDumpRecorderState &
       const nextBrief = analysisResult.brief
       setBrief(nextBrief)
       setStage("ready")
+      setBrainDumpResult(nextTranscript, nextBrief)
     } catch (error: unknown) {
       setStage("error")
       if (error instanceof Error) {
@@ -141,7 +155,7 @@ export function useBrainDumpRecorder(): UseBrainDumpRecorderState &
         setErrorMessage("Uventet fejl under behandling af brain dump.")
       }
     }
-  }, [])
+  }, [setBrainDumpResult])
 
   const stopRecording = useCallback(() => {
     const recorder = recorderRef.current
@@ -173,6 +187,7 @@ export function useBrainDumpRecorder(): UseBrainDumpRecorderState &
       setBrief(null)
       setPlatformDrafts([])
       setPlatformDraftErrorMessage(null)
+      resetWorkflow()
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
@@ -214,7 +229,7 @@ export function useBrainDumpRecorder(): UseBrainDumpRecorderState &
         "Mikrofonadgang blev afvist eller kunne ikke initialiseres."
       )
     }
-  }, [processCapturedAudio])
+  }, [processCapturedAudio, resetWorkflow])
 
   const reset = useCallback(() => {
     if (recorderRef.current?.state === "recording") {
@@ -227,10 +242,16 @@ export function useBrainDumpRecorder(): UseBrainDumpRecorderState &
     setBrief(null)
     setPlatformDrafts([])
     setPlatformDraftErrorMessage(null)
-  }, [])
+    resetWorkflow()
+  }, [resetWorkflow])
 
   const generatePlatformDrafts = useCallback(async () => {
-    if (!brief || stage !== "ready") {
+    if (
+      !brief ||
+      stage === "listening" ||
+      stage === "transcribing" ||
+      stage === "analyzing"
+    ) {
       return
     }
 
@@ -247,6 +268,7 @@ export function useBrainDumpRecorder(): UseBrainDumpRecorderState &
       }
 
       setPlatformDrafts(result.outputs)
+      setWorkflowDrafts(result.outputs)
     } catch {
       setPlatformDrafts([])
       setPlatformDraftErrorMessage(
@@ -255,7 +277,7 @@ export function useBrainDumpRecorder(): UseBrainDumpRecorderState &
     } finally {
       setIsGeneratingDrafts(false)
     }
-  }, [brief, stage])
+  }, [brief, setWorkflowDrafts, stage])
 
   useEffect(() => {
     return () => {

@@ -49,10 +49,12 @@ src/
       service.ts
     creative-room/
       components/
-      service.ts
+        creative-room-workspace.tsx
     scheduler/
       components/
-      service.ts
+        scheduler-list.tsx
+    workflow/
+      store.ts
 
   lib/
     agents/
@@ -91,3 +93,12 @@ src/
 4. Platform agents generate drafts in parallel (`Promise.all`) with one validation-retry.
 5. Creative Room enables review, regenerate per platform, and approval.
 6. Scheduler stores post plans with simple status progression.
+
+## Implemented module notes
+
+- **Creative Room** uses a split layout:
+  - left: workflow chat-log
+  - right: editable platform preview cards
+- **Scheduler** is a simple sorted list with status flow:
+  - `pending -> scheduled -> posted`
+- **Workflow state** is persisted client-side via Zustand to keep data between routes.

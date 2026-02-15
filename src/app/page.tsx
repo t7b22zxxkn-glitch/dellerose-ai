@@ -33,6 +33,18 @@ export default function Home() {
               <ArrowRight className="h-4 w-4" />
             </Link>
           </Button>
+          <Button asChild size="lg" variant="outline">
+            <Link href="/creative-room">
+              Åbn Creative Room
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
+          <Button asChild size="lg" variant="outline">
+            <Link href="/scheduler">
+              Åbn Scheduler
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
         </div>
       </section>
     </main>

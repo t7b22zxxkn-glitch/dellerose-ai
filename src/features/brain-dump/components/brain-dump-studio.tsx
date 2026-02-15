@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { AlertCircle, Loader2, Mic, RotateCcw, Square } from "lucide-react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -207,58 +208,64 @@ export function BrainDumpStudio() {
           ) : null}
 
           {platformDrafts.length > 0 ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              {platformDrafts.map((draft) => (
-                <Card key={draft.platform}>
-                  <CardHeader>
-                    <CardTitle className="text-base capitalize">
-                      {draft.platform}
-                    </CardTitle>
-                    <CardDescription>Status: {draft.status}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3 text-sm">
-                    <div>
-                      <p className="text-muted-foreground mb-1 font-medium">Hook</p>
-                      <p>{draft.hook}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground mb-1 font-medium">Body</p>
-                      <p>{draft.body}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground mb-1 font-medium">CTA</p>
-                      <p>{draft.cta}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground mb-1 font-medium">
-                        Hashtags
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {draft.hashtags.length > 0 ? (
-                          draft.hashtags.map((tag) => (
-                            <span
-                              key={tag}
-                              className="rounded-md border bg-muted px-2 py-1 text-xs"
-                            >
-                              {tag}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-muted-foreground text-xs">
-                            Ingen hashtags
-                          </span>
-                        )}
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                {platformDrafts.map((draft) => (
+                  <Card key={draft.platform}>
+                    <CardHeader>
+                      <CardTitle className="text-base capitalize">
+                        {draft.platform}
+                      </CardTitle>
+                      <CardDescription>Status: {draft.status}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3 text-sm">
+                      <div>
+                        <p className="text-muted-foreground mb-1 font-medium">Hook</p>
+                        <p>{draft.hook}</p>
                       </div>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground mb-1 font-medium">
-                        Visual suggestion
-                      </p>
-                      <p>{draft.visualSuggestion}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                      <div>
+                        <p className="text-muted-foreground mb-1 font-medium">Body</p>
+                        <p>{draft.body}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground mb-1 font-medium">CTA</p>
+                        <p>{draft.cta}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground mb-1 font-medium">
+                          Hashtags
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {draft.hashtags.length > 0 ? (
+                            draft.hashtags.map((tag) => (
+                              <span
+                                key={tag}
+                                className="rounded-md border bg-muted px-2 py-1 text-xs"
+                              >
+                                {tag}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-muted-foreground text-xs">
+                              Ingen hashtags
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground mb-1 font-medium">
+                          Visual suggestion
+                        </p>
+                        <p>{draft.visualSuggestion}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              <Button asChild>
+                <Link href="/creative-room">Åbn Creative Room</Link>
+              </Button>
             </div>
           ) : (
             <p className="text-muted-foreground text-sm">

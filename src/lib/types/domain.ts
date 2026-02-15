@@ -13,6 +13,7 @@ export type Platform =
   | "twitter"
 
 export type PostStatus = "draft" | "approved" | "scheduled" | "posted"
+export type PlanStatus = "pending" | "scheduled" | "posted"
 
 export type BrandProfile = {
   id: string
@@ -41,4 +42,16 @@ export type AgentOutput = {
   hashtags: string[]
   visualSuggestion: string
   status: PostStatus
+}
+
+export type PostPlan = {
+  id: string
+  platform: Platform
+  hook: string
+  body: string
+  cta: string
+  hashtags: string[]
+  visualSuggestion: string
+  status: PlanStatus
+  scheduledFor: string | null
 }

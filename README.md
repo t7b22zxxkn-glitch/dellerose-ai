@@ -52,6 +52,8 @@ pnpm dev
 
 Open `http://localhost:3000/onboarding` to run Brand Profile onboarding.
 Open `http://localhost:3000/brain-dump` to run voice Brain Dump.
+Open `http://localhost:3000/creative-room` for review and editing.
+Open `http://localhost:3000/scheduler` for scheduling flow.
 
 ## Current MVP modules
 
@@ -59,8 +61,8 @@ Open `http://localhost:3000/brain-dump` to run voice Brain Dump.
 - ✅ Brain Dump (voice + whisper + Master Agent brief)
 - ✅ Master Agent via Server Action (typed ContentBrief)
 - ✅ Multi-agent generation engine (5 platform agents + parallel orchestration)
-- 🔜 Creative Room preview and editing
-- 🔜 Scheduler list flow (pending → scheduled → posted)
+- ✅ Creative Room (chat-log + editable preview cards + regenerate + approve)
+- ✅ Scheduler list flow (pending → scheduled → posted + manual copy fallback)
 
 ## Architecture
 

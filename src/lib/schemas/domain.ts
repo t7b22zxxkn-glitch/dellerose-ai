@@ -23,6 +23,8 @@ export const postStatusSchema = z.enum([
   "posted",
 ])
 
+export const planStatusSchema = z.enum(["pending", "scheduled", "posted"])
+
 export const brandProfileSchema = z.object({
   id: z.string().uuid(),
   userId: z.string().uuid(),
@@ -50,4 +52,16 @@ export const agentOutputSchema = z.object({
   hashtags: z.array(z.string()),
   visualSuggestion: z.string().min(1),
   status: postStatusSchema,
+})
+
+export const postPlanSchema = z.object({
+  id: z.string().min(1),
+  platform: platformSchema,
+  hook: z.string().min(1),
+  body: z.string().min(1),
+  cta: z.string().min(1),
+  hashtags: z.array(z.string()),
+  visualSuggestion: z.string().min(1),
+  status: planStatusSchema,
+  scheduledFor: z.string().datetime().nullable(),
 })
