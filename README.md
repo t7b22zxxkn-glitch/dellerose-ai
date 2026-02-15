@@ -58,7 +58,7 @@ Open `http://localhost:3000/brain-dump` to run voice Brain Dump.
 - ✅ BrandProfile onboarding flow (implemented)
 - ✅ Brain Dump (voice + whisper + Master Agent brief)
 - ✅ Master Agent via Server Action (typed ContentBrief)
-- 🟡 Multi-agent generation engine (master done, platform agents pending)
+- ✅ Multi-agent generation engine (5 platform agents + parallel orchestration)
 - 🔜 Creative Room preview and editing
 - 🔜 Scheduler list flow (pending → scheduled → posted)
 

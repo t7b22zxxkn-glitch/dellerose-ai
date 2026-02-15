@@ -30,6 +30,8 @@ src/
     globals.css
 
   features/
+    agent-engine/
+      actions.ts
     onboarding/
       actions.ts
       schema.ts
@@ -54,6 +56,7 @@ src/
 
   lib/
     agents/
+      shared.ts
       master.ts
       linkedin.ts
       tiktok.ts
@@ -78,12 +81,13 @@ src/
 - **Master Agent:** Produces a validated `ContentBrief`.
 - **Platform agents:** Consume `ContentBrief + BrandProfile`, return validated `AgentOutput`.
 - **No agent can return free-form unvalidated text** for persistence.
+- **Retry policy:** If platform output fails Zod validation, agent retries exactly once.
 
 ## MVP workflow
 
 1. Onboarding captures and stores `BrandProfile`.
 2. Brain Dump records voice and transcribes with Whisper (`whisper-1`).
 3. Master Agent extracts intent and creates `ContentBrief`.
-4. Platform agents generate drafts in parallel.
+4. Platform agents generate drafts in parallel (`Promise.all`) with one validation-retry.
 5. Creative Room enables review, regenerate per platform, and approval.
 6. Scheduler stores post plans with simple status progression.

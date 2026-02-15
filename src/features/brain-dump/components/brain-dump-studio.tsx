@@ -38,11 +38,15 @@ export function BrainDumpStudio() {
     stage,
     transcript,
     brief,
+    platformDrafts,
+    isGeneratingDrafts,
+    platformDraftErrorMessage,
     errorMessage,
     isRecording,
     statusLabel,
     startRecording,
     stopRecording,
+    generatePlatformDrafts,
     reset,
   } = useBrainDumpRecorder()
 
@@ -163,6 +167,102 @@ export function BrainDumpStudio() {
           ) : (
             <p className="text-muted-foreground">
               ContentBrief vises her efter analyse.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Platform drafts (Multi-Agent Engine)</CardTitle>
+          <CardDescription>
+            Kører LinkedIn, TikTok, Instagram, Facebook og X parallelt.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Button
+            type="button"
+            onClick={() => void generatePlatformDrafts()}
+            disabled={!brief || isGeneratingDrafts || isRecording}
+          >
+            {isGeneratingDrafts ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Genererer...
+              </>
+            ) : (
+              <>
+                <Mic className="h-4 w-4" />
+                Generer platform drafts
+              </>
+            )}
+          </Button>
+
+          {platformDraftErrorMessage ? (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Multi-Agent fejl</AlertTitle>
+              <AlertDescription>{platformDraftErrorMessage}</AlertDescription>
+            </Alert>
+          ) : null}
+
+          {platformDrafts.length > 0 ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              {platformDrafts.map((draft) => (
+                <Card key={draft.platform}>
+                  <CardHeader>
+                    <CardTitle className="text-base capitalize">
+                      {draft.platform}
+                    </CardTitle>
+                    <CardDescription>Status: {draft.status}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm">
+                    <div>
+                      <p className="text-muted-foreground mb-1 font-medium">Hook</p>
+                      <p>{draft.hook}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground mb-1 font-medium">Body</p>
+                      <p>{draft.body}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground mb-1 font-medium">CTA</p>
+                      <p>{draft.cta}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground mb-1 font-medium">
+                        Hashtags
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {draft.hashtags.length > 0 ? (
+                          draft.hashtags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="rounded-md border bg-muted px-2 py-1 text-xs"
+                            >
+                              {tag}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-muted-foreground text-xs">
+                            Ingen hashtags
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground mb-1 font-medium">
+                        Visual suggestion
+                      </p>
+                      <p>{draft.visualSuggestion}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-sm">
+              Ingen platform-drafts endnu.
             </p>
           )}
         </CardContent>

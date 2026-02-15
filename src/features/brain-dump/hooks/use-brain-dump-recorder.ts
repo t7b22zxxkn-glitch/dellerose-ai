@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
+import { generatePlatformDraftsAction } from "@/features/agent-engine/actions"
 import { analyzeTranscriptAction } from "@/features/brain-dump/actions"
 import { transcribeAudioBlob } from "@/features/brain-dump/service"
-import type { ContentBrief } from "@/lib/types/domain"
+import type { AgentOutput, ContentBrief } from "@/lib/types/domain"
 
 export type BrainDumpStage =
   | "idle"
@@ -19,6 +20,9 @@ type UseBrainDumpRecorderState = {
   stage: BrainDumpStage
   transcript: string
   brief: ContentBrief | null
+  platformDrafts: AgentOutput[]
+  isGeneratingDrafts: boolean
+  platformDraftErrorMessage: string | null
   errorMessage: string | null
   isRecording: boolean
   statusLabel: string
@@ -27,6 +31,7 @@ type UseBrainDumpRecorderState = {
 type UseBrainDumpRecorderApi = {
   startRecording: () => Promise<void>
   stopRecording: () => void
+  generatePlatformDrafts: () => Promise<void>
   reset: () => void
 }
 
@@ -72,6 +77,11 @@ export function useBrainDumpRecorder(): UseBrainDumpRecorderState &
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [transcript, setTranscript] = useState("")
   const [brief, setBrief] = useState<ContentBrief | null>(null)
+  const [platformDrafts, setPlatformDrafts] = useState<AgentOutput[]>([])
+  const [isGeneratingDrafts, setIsGeneratingDrafts] = useState(false)
+  const [platformDraftErrorMessage, setPlatformDraftErrorMessage] = useState<
+    string | null
+  >(null)
 
   const isRecording = stage === "listening"
 
@@ -161,6 +171,8 @@ export function useBrainDumpRecorder(): UseBrainDumpRecorderState &
       setErrorMessage(null)
       setTranscript("")
       setBrief(null)
+      setPlatformDrafts([])
+      setPlatformDraftErrorMessage(null)
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
@@ -213,7 +225,37 @@ export function useBrainDumpRecorder(): UseBrainDumpRecorderState &
     setErrorMessage(null)
     setTranscript("")
     setBrief(null)
+    setPlatformDrafts([])
+    setPlatformDraftErrorMessage(null)
   }, [])
+
+  const generatePlatformDrafts = useCallback(async () => {
+    if (!brief || stage !== "ready") {
+      return
+    }
+
+    try {
+      setIsGeneratingDrafts(true)
+      setPlatformDraftErrorMessage(null)
+
+      const result = await generatePlatformDraftsAction(brief)
+
+      if (!result.success) {
+        setPlatformDrafts([])
+        setPlatformDraftErrorMessage(result.message)
+        return
+      }
+
+      setPlatformDrafts(result.outputs)
+    } catch {
+      setPlatformDrafts([])
+      setPlatformDraftErrorMessage(
+        "Platform-drafts kunne ikke genereres. Prøv igen."
+      )
+    } finally {
+      setIsGeneratingDrafts(false)
+    }
+  }, [brief, stage])
 
   useEffect(() => {
     return () => {
@@ -231,11 +273,15 @@ export function useBrainDumpRecorder(): UseBrainDumpRecorderState &
     stage,
     transcript,
     brief,
+    platformDrafts,
+    isGeneratingDrafts,
+    platformDraftErrorMessage,
     errorMessage,
     isRecording,
     statusLabel,
     startRecording,
     stopRecording,
+    generatePlatformDrafts,
     reset,
   }
 }
