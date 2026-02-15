@@ -104,7 +104,7 @@ function upsertPlanByPlatform(
 
 export const useWorkflowStore = create<WorkflowStoreState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       ...INITIAL_SNAPSHOT,
       setBrainDumpResult: (transcript, brief) => {
         set((state) => ({
@@ -174,11 +174,13 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
           const targetDraft = state.drafts.find((draft) => draft.platform === platform)
 
           if (!targetDraft) {
-            return state
+            return {}
           }
 
-          const nextDraftStatus = scheduledFor ? "scheduled" : "approved"
-          const nextDraft = { ...targetDraft, status: nextDraftStatus }
+          const nextDraftStatus: AgentOutput["status"] = scheduledFor
+            ? "scheduled"
+            : "approved"
+          const nextDraft: AgentOutput = { ...targetDraft, status: nextDraftStatus }
           const nextPlans = upsertPlanByPlatform(
             state.postPlans,
             platform,

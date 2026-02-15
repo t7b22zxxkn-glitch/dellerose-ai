@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useState, useTransition } from "react"
+import { useMemo, useState, useTransition } from "react"
 import {
   AlertCircle,
   CalendarClock,
@@ -68,18 +68,10 @@ function DraftPreviewCard({
   onApproveAndPlan,
 }: DraftCardProps) {
   const [editingField, setEditingField] = useState<EditableField>(null)
-  const [hookDraft, setHookDraft] = useState(draft.hook)
-  const [bodyDraft, setBodyDraft] = useState(draft.body)
-  const [ctaDraft, setCtaDraft] = useState(draft.cta)
+  const [editingValue, setEditingValue] = useState("")
   const [scheduledDate, setScheduledDate] = useState("")
   const [cardErrorMessage, setCardErrorMessage] = useState<string | null>(null)
   const [isRegenerating, startRegenerate] = useTransition()
-
-  useEffect(() => {
-    setHookDraft(draft.hook)
-    setBodyDraft(draft.body)
-    setCtaDraft(draft.cta)
-  }, [draft.body, draft.cta, draft.hook])
 
   const isFieldLocked = editingField !== null
   const platformLabel = useMemo(
@@ -92,14 +84,7 @@ function DraftPreviewCard({
       return
     }
 
-    const value =
-      editingField === "hook"
-        ? hookDraft
-        : editingField === "body"
-          ? bodyDraft
-          : ctaDraft
-
-    const trimmed = value.trim()
+    const trimmed = editingValue.trim()
     if (!trimmed) {
       setCardErrorMessage("Feltet må ikke være tomt.")
       return
@@ -111,10 +96,8 @@ function DraftPreviewCard({
   }
 
   const cancelEdit = () => {
-    setHookDraft(draft.hook)
-    setBodyDraft(draft.body)
-    setCtaDraft(draft.cta)
     setEditingField(null)
+    setEditingValue("")
     setCardErrorMessage(null)
   }
 
@@ -164,15 +147,18 @@ function DraftPreviewCard({
             </p>
             {editingField === "hook" ? (
               <Textarea
-                value={hookDraft}
-                onChange={(event) => setHookDraft(event.target.value)}
+                value={editingValue}
+                onChange={(event) => setEditingValue(event.target.value)}
                 className="min-h-[70px] bg-background"
               />
             ) : (
               <button
                 type="button"
                 className="w-full text-left font-semibold"
-                onClick={() => setEditingField("hook")}
+                onClick={() => {
+                  setEditingField("hook")
+                  setEditingValue(draft.hook)
+                }}
                 disabled={isFieldLocked}
               >
                 {draft.hook}
@@ -186,15 +172,18 @@ function DraftPreviewCard({
             </p>
             {editingField === "body" ? (
               <Textarea
-                value={bodyDraft}
-                onChange={(event) => setBodyDraft(event.target.value)}
+                value={editingValue}
+                onChange={(event) => setEditingValue(event.target.value)}
                 className="min-h-[120px] bg-background"
               />
             ) : (
               <button
                 type="button"
                 className="w-full text-left"
-                onClick={() => setEditingField("body")}
+                onClick={() => {
+                  setEditingField("body")
+                  setEditingValue(draft.body)
+                }}
                 disabled={isFieldLocked}
               >
                 {draft.body}
@@ -208,15 +197,18 @@ function DraftPreviewCard({
             </p>
             {editingField === "cta" ? (
               <Textarea
-                value={ctaDraft}
-                onChange={(event) => setCtaDraft(event.target.value)}
+                value={editingValue}
+                onChange={(event) => setEditingValue(event.target.value)}
                 className="min-h-[70px] bg-background"
               />
             ) : (
               <button
                 type="button"
                 className="w-full text-left font-medium"
-                onClick={() => setEditingField("cta")}
+                onClick={() => {
+                  setEditingField("cta")
+                  setEditingValue(draft.cta)
+                }}
                 disabled={isFieldLocked}
               >
                 {draft.cta}
