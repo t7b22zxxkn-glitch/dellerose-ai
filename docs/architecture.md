@@ -24,7 +24,8 @@ src/
     scheduler/
       page.tsx
     api/
-      whisper/route.ts
+      brain-dump/
+        transcribe/route.ts
     layout.tsx
     globals.css
 
@@ -37,8 +38,12 @@ src/
       components/
         onboarding-form.tsx
     brain-dump/
+      actions.ts
       components/
+        brain-dump-studio.tsx
       hooks/
+        use-brain-dump-recorder.ts
+      schema.ts
       service.ts
     creative-room/
       components/
@@ -77,7 +82,7 @@ src/
 ## MVP workflow
 
 1. Onboarding captures and stores `BrandProfile`.
-2. Brain Dump records voice and transcribes with Whisper.
+2. Brain Dump records voice and transcribes with Whisper (`whisper-1`).
 3. Master Agent extracts intent and creates `ContentBrief`.
 4. Platform agents generate drafts in parallel.
 5. Creative Room enables review, regenerate per platform, and approval.

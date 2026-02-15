@@ -20,10 +20,16 @@ export default function Home() {
           type-sikring. Start med onboarding for at oprette din Brand Profile.
         </p>
 
-        <div className="mt-8">
+        <div className="mt-8 flex flex-wrap gap-3">
           <Button asChild size="lg">
             <Link href="/onboarding">
               Gå til onboarding
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
+          <Button asChild size="lg" variant="outline">
+            <Link href="/brain-dump">
+              Åbn Brain Dump
               <ArrowRight className="h-4 w-4" />
             </Link>
           </Button>

@@ -31,6 +31,7 @@ cp .env.example .env.local
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+OPENAI_API_KEY=...
 ```
 
 Optional for local development without login:
@@ -50,12 +51,14 @@ pnpm dev
 ```
 
 Open `http://localhost:3000/onboarding` to run Brand Profile onboarding.
+Open `http://localhost:3000/brain-dump` to run voice Brain Dump.
 
 ## Current MVP modules
 
 - ✅ BrandProfile onboarding flow (implemented)
-- 🔜 Brain Dump (voice + whisper)
-- 🔜 Multi-agent generation engine
+- ✅ Brain Dump (voice + whisper + Master Agent brief)
+- ✅ Master Agent via Server Action (typed ContentBrief)
+- 🟡 Multi-agent generation engine (master done, platform agents pending)
 - 🔜 Creative Room preview and editing
 - 🔜 Scheduler list flow (pending → scheduled → posted)
 
