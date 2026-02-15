@@ -45,8 +45,10 @@ async function resolveCurrentUserId(
 
   const devUserId = process.env.DELLEROSE_DEV_USER_ID
 
-  if (devUserIdSchema.safeParse(devUserId).success) {
-    return devUserId
+  const parsedDevUserId = devUserIdSchema.safeParse(devUserId)
+
+  if (parsedDevUserId.success) {
+    return parsedDevUserId.data
   }
 
   return null
