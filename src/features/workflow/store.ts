@@ -204,15 +204,17 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
       },
       setPlanScheduled: (planId, scheduledFor) => {
         set((state) => {
-          const nextPlans = state.postPlans.map((plan) =>
-            plan.id === planId
-              ? {
-                  ...plan,
-                  status: "scheduled",
-                  scheduledFor,
-                }
-              : plan
-          )
+          const nextPlans: PostPlan[] = state.postPlans.map((plan): PostPlan => {
+            if (plan.id !== planId) {
+              return plan
+            }
+
+            return {
+              ...plan,
+              status: "scheduled",
+              scheduledFor,
+            }
+          })
 
           const affectedPlatform =
             nextPlans.find((plan) => plan.id === planId)?.platform ?? null
@@ -234,9 +236,13 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
       },
       markPlanPosted: (planId) => {
         set((state) => {
-          const nextPlans = state.postPlans.map((plan) =>
-            plan.id === planId ? { ...plan, status: "posted" } : plan
-          )
+          const nextPlans: PostPlan[] = state.postPlans.map((plan): PostPlan => {
+            if (plan.id !== planId) {
+              return plan
+            }
+
+            return { ...plan, status: "posted" }
+          })
 
           const affectedPlatform =
             nextPlans.find((plan) => plan.id === planId)?.platform ?? null
