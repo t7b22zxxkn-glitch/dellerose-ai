@@ -48,8 +48,9 @@ function createWorkflowId(): string {
 const workflowIdSchema = z.string().uuid()
 
 function ensureValidWorkflowId(candidate: string | undefined): string {
-  if (workflowIdSchema.safeParse(candidate).success) {
-    return candidate
+  const parsed = workflowIdSchema.safeParse(candidate)
+  if (parsed.success) {
+    return parsed.data
   }
   return createWorkflowId()
 }
