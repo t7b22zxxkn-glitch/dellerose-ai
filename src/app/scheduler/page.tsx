@@ -1,8 +1,13 @@
 import { CalendarDays } from "lucide-react"
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { SchedulerList } from "@/features/scheduler/components/scheduler-list"
+import { WorkflowHydrator } from "@/features/workflow/components/workflow-hydrator"
+import { getLatestPersistedWorkflow } from "@/features/workflow/queries"
 
-export default function SchedulerPage() {
+export default async function SchedulerPage() {
+  const persistedWorkflow = await getLatestPersistedWorkflow()
+
   return (
     <main className="min-h-screen bg-muted/30 px-4 py-10">
       <section className="mx-auto mb-8 max-w-5xl space-y-3">
@@ -15,6 +20,17 @@ export default function SchedulerPage() {
           Simpel statusstyring med flowet pending → scheduled → posted.
         </p>
       </section>
+
+      <WorkflowHydrator snapshot={persistedWorkflow.snapshot} />
+
+      {persistedWorkflow.notice ? (
+        <section className="mx-auto mb-6 max-w-5xl">
+          <Alert>
+            <AlertTitle>Info</AlertTitle>
+            <AlertDescription>{persistedWorkflow.notice}</AlertDescription>
+          </Alert>
+        </section>
+      ) : null}
 
       <div className="mx-auto max-w-5xl">
         <SchedulerList />

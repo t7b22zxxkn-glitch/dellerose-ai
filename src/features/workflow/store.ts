@@ -1,18 +1,15 @@
 "use client"
 
+import { z } from "zod"
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
 
 import type { AgentOutput, ContentBrief, Platform, PostPlan } from "@/lib/types/domain"
-
-type WorkflowChatRole = "system" | "user" | "agent"
-
-export type WorkflowChatItem = {
-  id: string
-  role: WorkflowChatRole
-  message: string
-  createdAt: string
-}
+import type {
+  WorkflowChatItem,
+  WorkflowChatRole,
+  WorkflowSnapshot,
+} from "@/features/workflow/types"
 
 type WorkflowStoreState = {
   workflowId: string
@@ -21,6 +18,7 @@ type WorkflowStoreState = {
   drafts: AgentOutput[]
   postPlans: PostPlan[]
   chatLog: WorkflowChatItem[]
+  hydrateFromPersistedSnapshot: (snapshot: WorkflowSnapshot) => void
   setBrainDumpResult: (transcript: string, brief: ContentBrief) => void
   setDrafts: (drafts: AgentOutput[]) => void
   replaceDraft: (nextDraft: AgentOutput) => void
@@ -35,11 +33,6 @@ type WorkflowStoreState = {
   resetWorkflow: () => void
 }
 
-type WorkflowSnapshot = Pick<
-  WorkflowStoreState,
-  "workflowId" | "transcript" | "brief" | "drafts" | "postPlans" | "chatLog"
->
-
 function createWorkflowId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID()
@@ -50,6 +43,15 @@ function createWorkflowId(): string {
     const value = char === "x" ? randomValue : (randomValue & 0x3) | 0x8
     return value.toString(16)
   })
+}
+
+const workflowIdSchema = z.string().uuid()
+
+function ensureValidWorkflowId(candidate: string | undefined): string {
+  if (workflowIdSchema.safeParse(candidate).success) {
+    return candidate
+  }
+  return createWorkflowId()
 }
 
 const INITIAL_SNAPSHOT: WorkflowSnapshot = {
@@ -120,8 +122,29 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
   persist(
     (set) => ({
       ...INITIAL_SNAPSHOT,
+      hydrateFromPersistedSnapshot: (snapshot) => {
+        set((state) => {
+          if (state.drafts.length > 0 || state.brief) {
+            return {}
+          }
+
+          return {
+            workflowId: ensureValidWorkflowId(snapshot.workflowId),
+            transcript: snapshot.transcript,
+            brief: snapshot.brief,
+            drafts: snapshot.drafts,
+            postPlans: snapshot.postPlans,
+            chatLog: appendChatLog(
+              snapshot.chatLog,
+              "system",
+              "Workflow blev indlæst fra Supabase."
+            ),
+          }
+        })
+      },
       setBrainDumpResult: (transcript, brief) => {
         set((state) => ({
+          workflowId: ensureValidWorkflowId(state.workflowId),
           transcript,
           brief,
           drafts: [],
@@ -139,6 +162,7 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
       },
       setDrafts: (drafts) => {
         set((state) => ({
+          workflowId: ensureValidWorkflowId(state.workflowId),
           drafts,
           chatLog: appendChatLog(
             state.chatLog,
@@ -149,6 +173,7 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
       },
       replaceDraft: (nextDraft) => {
         set((state) => ({
+          workflowId: ensureValidWorkflowId(state.workflowId),
           drafts: state.drafts.map((draft) =>
             draft.platform === nextDraft.platform ? nextDraft : draft
           ),
@@ -163,6 +188,7 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
         const normalizedValue = value.trim()
 
         set((state) => ({
+          workflowId: ensureValidWorkflowId(state.workflowId),
           drafts: state.drafts.map((draft) => {
             if (draft.platform !== platform) {
               return draft
@@ -202,6 +228,7 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
           )
 
           return {
+            workflowId: ensureValidWorkflowId(state.workflowId),
             drafts: state.drafts.map((draft) =>
               draft.platform === platform ? nextDraft : draft
             ),
@@ -234,6 +261,7 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
             nextPlans.find((plan) => plan.id === planId)?.platform ?? null
 
           return {
+            workflowId: ensureValidWorkflowId(state.workflowId),
             postPlans: nextPlans,
             drafts: state.drafts.map((draft) =>
               draft.platform === affectedPlatform
@@ -262,6 +290,7 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
             nextPlans.find((plan) => plan.id === planId)?.platform ?? null
 
           return {
+            workflowId: ensureValidWorkflowId(state.workflowId),
             postPlans: nextPlans,
             drafts: state.drafts.map((draft) =>
               draft.platform === affectedPlatform ? { ...draft, status: "posted" } : draft
@@ -293,6 +322,18 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
         postPlans: state.postPlans,
         chatLog: state.chatLog,
       }),
+      migrate: (persistedState) => {
+        const state =
+          typeof persistedState === "object" && persistedState !== null
+            ? (persistedState as Partial<WorkflowSnapshot>)
+            : {}
+
+        return {
+          ...INITIAL_SNAPSHOT,
+          ...state,
+          workflowId: ensureValidWorkflowId(state.workflowId),
+        } as WorkflowStoreState
+      },
     }
   )
 )

@@ -83,6 +83,7 @@ If you use token-based auth in CI, set `SUPABASE_ACCESS_TOKEN` and
 - ✅ Creative Room (chat-log + editable preview cards + regenerate + approve)
 - ✅ Scheduler list flow (pending → scheduled → posted + manual copy fallback)
 - ✅ Supabase persistence for approved/scheduled/post status updates
+- ✅ Rehydration from Supabase on Creative Room/Scheduler load
 
 ## Architecture
 

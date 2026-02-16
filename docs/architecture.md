@@ -105,3 +105,5 @@ src/
 - **Workflow state** is persisted client-side via Zustand to keep data between routes.
 - **Approved and scheduled posts** are also persisted server-side in Supabase (`briefs`, `posts`)
   keyed by `workflow_id`.
+- **Creative Room/Scheduler rehydration** loads latest persisted workflow from Supabase and
+  hydrates client store when local state is empty.
