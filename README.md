@@ -55,6 +55,25 @@ Open `http://localhost:3000/brain-dump` to run voice Brain Dump.
 Open `http://localhost:3000/creative-room` for review and editing.
 Open `http://localhost:3000/scheduler` for scheduling flow.
 
+## Supabase + Vercel setup
+
+Supabase and Vercel CLIs are configured in this project, but both services
+still require authenticated login before linking/deploying:
+
+```bash
+pnpm run supabase:login
+pnpm run supabase:link
+pnpm run supabase:push
+
+pnpm run vercel:login
+pnpm run vercel:link
+pnpm run vercel:env:pull
+pnpm run vercel:deploy
+```
+
+If you use token-based auth in CI, set `SUPABASE_ACCESS_TOKEN` and
+`VERCEL_TOKEN` in your environment.
+
 ## Current MVP modules
 
 - ✅ BrandProfile onboarding flow (implemented)
