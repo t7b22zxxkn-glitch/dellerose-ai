@@ -63,6 +63,7 @@ Open `http://localhost:3000/scheduler` for scheduling flow.
 - ✅ Multi-agent generation engine (5 platform agents + parallel orchestration)
 - ✅ Creative Room (chat-log + editable preview cards + regenerate + approve)
 - ✅ Scheduler list flow (pending → scheduled → posted + manual copy fallback)
+- ✅ Supabase persistence for approved/scheduled/post status updates
 
 ## Architecture
 

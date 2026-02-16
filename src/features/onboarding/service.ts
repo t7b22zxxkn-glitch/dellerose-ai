@@ -1,20 +1,15 @@
 import "server-only"
 
-import { z } from "zod"
-
 import {
   mapProfileRowToBrandProfile,
   profileRowSchema,
 } from "@/lib/schemas/database"
+import { resolveCurrentUserId } from "@/lib/supabase/auth"
 import { isSupabaseConfigured } from "@/lib/supabase/config"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import type { BrandProfile } from "@/lib/types/domain"
 
 import type { OnboardingFormInput } from "./schema"
-
-type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>
-
-const devUserIdSchema = z.string().uuid()
 
 export type OnboardingBootstrap = {
   profile: BrandProfile | null
@@ -31,28 +26,6 @@ type UpsertBrandProfileResult =
       success: false
       message: string
     }
-
-async function resolveCurrentUserId(
-  supabase: SupabaseServerClient
-): Promise<string | null> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (user?.id) {
-    return user.id
-  }
-
-  const devUserId = process.env.DELLEROSE_DEV_USER_ID
-
-  const parsedDevUserId = devUserIdSchema.safeParse(devUserId)
-
-  if (parsedDevUserId.success) {
-    return parsedDevUserId.data
-  }
-
-  return null
-}
 
 export async function getOnboardingBootstrap(): Promise<OnboardingBootstrap> {
   if (!isSupabaseConfigured()) {

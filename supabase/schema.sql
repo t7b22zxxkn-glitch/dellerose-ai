@@ -64,6 +64,7 @@ create table if not exists public.profiles (
 create table if not exists public.briefs (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
+  workflow_id uuid not null default gen_random_uuid(),
   source_transcript text not null,
   core_message text not null,
   intent public.content_intent not null,
@@ -78,6 +79,7 @@ create table if not exists public.posts (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   brief_id uuid not null references public.briefs(id) on delete cascade,
+  workflow_id uuid not null,
   platform public.social_platform not null,
   hook text not null,
   body text not null,
@@ -92,14 +94,49 @@ create table if not exists public.posts (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+alter table public.briefs
+  add column if not exists workflow_id uuid;
+
+update public.briefs
+set workflow_id = gen_random_uuid()
+where workflow_id is null;
+
+alter table public.briefs
+  alter column workflow_id set default gen_random_uuid();
+
+alter table public.briefs
+  alter column workflow_id set not null;
+
+alter table public.posts
+  add column if not exists workflow_id uuid;
+
+update public.posts as p
+set workflow_id = b.workflow_id
+from public.briefs as b
+where p.workflow_id is null
+  and p.brief_id = b.id;
+
+update public.posts
+set workflow_id = gen_random_uuid()
+where workflow_id is null;
+
+alter table public.posts
+  alter column workflow_id set not null;
+
 create index if not exists briefs_user_id_created_at_idx
   on public.briefs (user_id, created_at desc);
+
+create unique index if not exists briefs_user_id_workflow_id_uidx
+  on public.briefs (user_id, workflow_id);
 
 create index if not exists posts_user_id_status_scheduled_idx
   on public.posts (user_id, status, scheduled_for);
 
 create index if not exists posts_brief_id_idx
   on public.posts (brief_id);
+
+create unique index if not exists posts_user_id_workflow_id_platform_uidx
+  on public.posts (user_id, workflow_id, platform);
 
 create or replace function public.set_updated_at()
 returns trigger

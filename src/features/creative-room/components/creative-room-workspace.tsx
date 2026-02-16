@@ -11,6 +11,7 @@ import {
 } from "lucide-react"
 
 import { regeneratePlatformDraftAction } from "@/features/agent-engine/actions"
+import { upsertPostPlanAction } from "@/features/scheduler/actions"
 import { useWorkflowStore } from "@/features/workflow/store"
 import type { AgentOutput, ContentBrief, Platform } from "@/lib/types/domain"
 
@@ -29,6 +30,8 @@ import { Textarea } from "@/components/ui/textarea"
 type EditableField = "hook" | "body" | "cta" | null
 
 type DraftCardProps = {
+  workflowId: string
+  transcript: string
   brief: ContentBrief
   draft: AgentOutput
   onReplaceDraft: (nextDraft: AgentOutput) => void
@@ -61,6 +64,8 @@ function toIsoDateOrNull(dateValue: string): string | null {
 }
 
 function DraftPreviewCard({
+  workflowId,
+  transcript,
   brief,
   draft,
   onReplaceDraft,
@@ -72,6 +77,7 @@ function DraftPreviewCard({
   const [scheduledDate, setScheduledDate] = useState("")
   const [cardErrorMessage, setCardErrorMessage] = useState<string | null>(null)
   const [isRegenerating, startRegenerate] = useTransition()
+  const [isPersistingPlan, startPersistPlan] = useTransition()
 
   const isFieldLocked = editingField !== null
   const platformLabel = useMemo(
@@ -122,8 +128,23 @@ function DraftPreviewCard({
       return
     }
 
-    onApproveAndPlan(draft.platform, scheduledFor)
-    setCardErrorMessage(null)
+    startPersistPlan(async () => {
+      const result = await upsertPostPlanAction({
+        workflowId,
+        transcript,
+        brief,
+        draft,
+        scheduledFor,
+      })
+
+      if (!result.success) {
+        setCardErrorMessage(result.message)
+        return
+      }
+
+      onApproveAndPlan(draft.platform, scheduledFor)
+      setCardErrorMessage(null)
+    })
   }
 
   return (
@@ -259,7 +280,7 @@ function DraftPreviewCard({
                 type="button"
                 variant="outline"
                 onClick={handleRegenerate}
-                disabled={isRegenerating || isFieldLocked}
+                disabled={isRegenerating || isPersistingPlan || isFieldLocked}
               >
                 <RefreshCcw className="h-4 w-4" />
                 {isRegenerating ? "Regenererer..." : "Regenerate"}
@@ -276,10 +297,10 @@ function DraftPreviewCard({
               <Button
                 type="button"
                 onClick={handleApproveAndPlan}
-                disabled={isFieldLocked || isRegenerating}
+                disabled={isFieldLocked || isRegenerating || isPersistingPlan}
               >
                 <CheckCircle2 className="h-4 w-4" />
-                Godkend & Planlæg
+                {isPersistingPlan ? "Gemmer..." : "Godkend & Planlæg"}
               </Button>
             </div>
           </div>
@@ -290,6 +311,8 @@ function DraftPreviewCard({
 }
 
 export function CreativeRoomWorkspace() {
+  const workflowId = useWorkflowStore((state) => state.workflowId)
+  const transcript = useWorkflowStore((state) => state.transcript)
   const brief = useWorkflowStore((state) => state.brief)
   const drafts = useWorkflowStore((state) => state.drafts)
   const chatLog = useWorkflowStore((state) => state.chatLog)
@@ -374,6 +397,8 @@ export function CreativeRoomWorkspace() {
           {drafts.map((draft) => (
             <DraftPreviewCard
               key={draft.platform}
+              workflowId={workflowId}
+              transcript={transcript}
               brief={brief}
               draft={draft}
               onReplaceDraft={replaceDraft}

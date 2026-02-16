@@ -51,6 +51,7 @@ src/
       components/
         creative-room-workspace.tsx
     scheduler/
+      actions.ts
       components/
         scheduler-list.tsx
     workflow/
@@ -102,3 +103,5 @@ src/
 - **Scheduler** is a simple sorted list with status flow:
   - `pending -> scheduled -> posted`
 - **Workflow state** is persisted client-side via Zustand to keep data between routes.
+- **Approved and scheduled posts** are also persisted server-side in Supabase (`briefs`, `posts`)
+  keyed by `workflow_id`.

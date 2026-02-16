@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useMemo, useState } from "react"
 import { CalendarDays, CheckCircle2, ClipboardCopy, Clock3 } from "lucide-react"
 
+import { updatePersistedPostPlanStatusAction } from "@/features/scheduler/actions"
 import { useWorkflowStore } from "@/features/workflow/store"
 import type { PostPlan } from "@/lib/types/domain"
 
@@ -79,6 +80,7 @@ function toDateInputValue(iso: string | null): string {
 }
 
 export function SchedulerList() {
+  const workflowId = useWorkflowStore((state) => state.workflowId)
   const plans = useWorkflowStore((state) => state.postPlans)
   const setPlanScheduled = useWorkflowStore((state) => state.setPlanScheduled)
   const markPlanPosted = useWorkflowStore((state) => state.markPlanPosted)
@@ -88,9 +90,13 @@ export function SchedulerList() {
   const sortedPlans = useMemo(() => sortPlansByDate(plans), [plans])
 
   const copyPlanText = async (plan: PostPlan) => {
-    const payload = `${plan.hook}\n\n${plan.body}\n\n${plan.cta}\n\n${plan.hashtags.join(" ")}`
-    await navigator.clipboard.writeText(payload)
-    setFeedbackMessage(`Indhold for ${plan.platform} er kopieret til udklipsholderen.`)
+    try {
+      const payload = `${plan.hook}\n\n${plan.body}\n\n${plan.cta}\n\n${plan.hashtags.join(" ")}`
+      await navigator.clipboard.writeText(payload)
+      setFeedbackMessage(`Indhold for ${plan.platform} er kopieret til udklipsholderen.`)
+    } catch {
+      setFeedbackMessage("Kunne ikke kopiere til udklipsholder.")
+    }
   }
 
   if (sortedPlans.length === 0) {
@@ -187,12 +193,25 @@ export function SchedulerList() {
                   {plan.status === "pending" ? (
                     <Button
                       type="button"
-                      onClick={() => {
+                      onClick={async () => {
                         const scheduledFor = toIsoDateOrNull(dateValue)
                         if (!scheduledFor) {
                           setFeedbackMessage("Vælg en gyldig dato før scheduling.")
                           return
                         }
+
+                        const result = await updatePersistedPostPlanStatusAction({
+                          workflowId,
+                          platform: plan.platform,
+                          status: "scheduled",
+                          scheduledFor,
+                        })
+
+                        if (!result.success) {
+                          setFeedbackMessage(result.message)
+                          return
+                        }
+
                         setPlanScheduled(plan.id, scheduledFor)
                         setFeedbackMessage(`${plan.platform} blev sat til scheduled.`)
                       }}
@@ -203,7 +222,18 @@ export function SchedulerList() {
                   ) : (
                     <Button
                       type="button"
-                      onClick={() => {
+                      onClick={async () => {
+                        const result = await updatePersistedPostPlanStatusAction({
+                          workflowId,
+                          platform: plan.platform,
+                          status: "posted",
+                        })
+
+                        if (!result.success) {
+                          setFeedbackMessage(result.message)
+                          return
+                        }
+
                         markPlanPosted(plan.id)
                         setFeedbackMessage(`${plan.platform} blev markeret som posted.`)
                       }}

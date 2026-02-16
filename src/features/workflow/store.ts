@@ -15,6 +15,7 @@ export type WorkflowChatItem = {
 }
 
 type WorkflowStoreState = {
+  workflowId: string
   transcript: string
   brief: ContentBrief | null
   drafts: AgentOutput[]
@@ -36,10 +37,23 @@ type WorkflowStoreState = {
 
 type WorkflowSnapshot = Pick<
   WorkflowStoreState,
-  "transcript" | "brief" | "drafts" | "postPlans" | "chatLog"
+  "workflowId" | "transcript" | "brief" | "drafts" | "postPlans" | "chatLog"
 >
 
+function createWorkflowId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID()
+  }
+
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (char) => {
+    const randomValue = Math.floor(Math.random() * 16)
+    const value = char === "x" ? randomValue : (randomValue & 0x3) | 0x8
+    return value.toString(16)
+  })
+}
+
 const INITIAL_SNAPSHOT: WorkflowSnapshot = {
+  workflowId: createWorkflowId(),
   transcript: "",
   brief: null,
   drafts: [],
@@ -263,6 +277,7 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
       resetWorkflow: () => {
         set(() => ({
           ...INITIAL_SNAPSHOT,
+          workflowId: createWorkflowId(),
           chatLog: appendChatLog([], "system", "Workflow blev nulstillet."),
         }))
       },
@@ -271,6 +286,7 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
       name: "dellerose-workflow-v1",
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
+        workflowId: state.workflowId,
         transcript: state.transcript,
         brief: state.brief,
         drafts: state.drafts,
@@ -284,6 +300,7 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
 export function getWorkflowSnapshot(): WorkflowSnapshot {
   const state = useWorkflowStore.getState()
   return {
+    workflowId: state.workflowId,
     transcript: state.transcript,
     brief: state.brief,
     drafts: state.drafts,
