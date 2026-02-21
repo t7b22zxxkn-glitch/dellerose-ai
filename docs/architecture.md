@@ -30,6 +30,11 @@ src/
     globals.css
 
   features/
+    auth/
+      actions.ts
+      types.ts
+      components/
+        auth-panel.tsx
     agent-engine/
       actions.ts
     onboarding/
@@ -107,3 +112,4 @@ src/
   keyed by `workflow_id`.
 - **Creative Room/Scheduler rehydration** loads latest persisted workflow from Supabase and
   hydrates client store when local state is empty.
+- **Auth** uses Supabase Auth with server actions for sign-in/up/out and protected app routes.

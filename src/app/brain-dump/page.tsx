@@ -1,8 +1,10 @@
 import { Mic } from "lucide-react"
 
 import { BrainDumpStudio } from "@/features/brain-dump/components/brain-dump-studio"
+import { requireAuthenticatedUser } from "@/lib/auth/guards"
 
-export default function BrainDumpPage() {
+export default async function BrainDumpPage() {
+  await requireAuthenticatedUser("/brain-dump")
   return (
     <main className="min-h-screen bg-muted/30 px-4 py-10">
       <section className="mx-auto mb-8 max-w-4xl space-y-3">

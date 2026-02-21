@@ -4,8 +4,10 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { SchedulerList } from "@/features/scheduler/components/scheduler-list"
 import { WorkflowHydrator } from "@/features/workflow/components/workflow-hydrator"
 import { getLatestPersistedWorkflow } from "@/features/workflow/queries"
+import { requireAuthenticatedUser } from "@/lib/auth/guards"
 
 export default async function SchedulerPage() {
+  await requireAuthenticatedUser("/scheduler")
   const persistedWorkflow = await getLatestPersistedWorkflow()
 
   return (

@@ -2,8 +2,10 @@ import { WandSparkles } from "lucide-react"
 
 import { OnboardingForm } from "@/features/onboarding/components/onboarding-form"
 import { getOnboardingBootstrap } from "@/features/onboarding/service"
+import { requireAuthenticatedUser } from "@/lib/auth/guards"
 
 export default async function OnboardingPage() {
+  await requireAuthenticatedUser("/onboarding")
   const bootstrap = await getOnboardingBootstrap()
 
   return (

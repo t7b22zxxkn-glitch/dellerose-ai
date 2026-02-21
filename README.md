@@ -54,6 +54,7 @@ Open `http://localhost:3000/onboarding` to run Brand Profile onboarding.
 Open `http://localhost:3000/brain-dump` to run voice Brain Dump.
 Open `http://localhost:3000/creative-room` for review and editing.
 Open `http://localhost:3000/scheduler` for scheduling flow.
+Open `http://localhost:3000/login` for Supabase Auth sign-in/up.
 
 ## Supabase + Vercel setup
 
@@ -84,6 +85,7 @@ If you use token-based auth in CI, set `SUPABASE_ACCESS_TOKEN` and
 - ✅ Scheduler list flow (pending → scheduled → posted + manual copy fallback)
 - ✅ Supabase persistence for approved/scheduled/post status updates
 - ✅ Rehydration from Supabase on Creative Room/Scheduler load
+- ✅ Supabase Auth login flow (sign in, sign up, sign out)
 
 ## Architecture
 

@@ -4,8 +4,10 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { CreativeRoomWorkspace } from "@/features/creative-room/components/creative-room-workspace"
 import { WorkflowHydrator } from "@/features/workflow/components/workflow-hydrator"
 import { getLatestPersistedWorkflow } from "@/features/workflow/queries"
+import { requireAuthenticatedUser } from "@/lib/auth/guards"
 
 export default async function CreativeRoomPage() {
+  await requireAuthenticatedUser("/creative-room")
   const persistedWorkflow = await getLatestPersistedWorkflow()
 
   return (
