@@ -1,6 +1,23 @@
 import { AuthPanel } from "@/features/auth/components/auth-panel"
 
-export default function LoginPage() {
+type LoginPageProps = {
+  searchParams?: Promise<{
+    next?: string
+  }>
+}
+
+function toSafeNextPath(candidate: string | undefined): string {
+  if (candidate && candidate.startsWith("/") && !candidate.startsWith("//")) {
+    return candidate
+  }
+
+  return "/onboarding"
+}
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const resolvedSearchParams = searchParams ? await searchParams : undefined
+  const nextPath = toSafeNextPath(resolvedSearchParams?.next)
+
   return (
     <main className="min-h-screen bg-muted/30 px-4 py-10">
       <section className="mx-auto mb-6 max-w-md space-y-2 text-center">
@@ -10,7 +27,7 @@ export default function LoginPage() {
         </p>
       </section>
 
-      <AuthPanel />
+      <AuthPanel nextPath={nextPath} />
     </main>
   )
 }

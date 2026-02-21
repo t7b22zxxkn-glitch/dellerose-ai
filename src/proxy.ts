@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server"
 
 import { getSupabaseConfig, isSupabaseConfigured } from "@/lib/supabase/config"
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let response = NextResponse.next({
     request,
   })

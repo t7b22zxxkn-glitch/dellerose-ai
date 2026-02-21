@@ -1,7 +1,6 @@
 "use client"
 
-import { useActionState, useMemo, useState } from "react"
-import { useSearchParams } from "next/navigation"
+import { useActionState, useState } from "react"
 import { AlertCircle, CheckCircle2, LockKeyhole } from "lucide-react"
 
 import { submitAuthAction } from "@/features/auth/actions"
@@ -21,24 +20,16 @@ import { Label } from "@/components/ui/label"
 
 type AuthMode = "sign-in" | "sign-up"
 
-export function AuthPanel() {
-  const searchParams = useSearchParams()
+type AuthPanelProps = {
+  nextPath: string
+}
+
+export function AuthPanel({ nextPath }: AuthPanelProps) {
   const [mode, setMode] = useState<AuthMode>("sign-in")
   const [state, formAction, isPending] = useActionState(
     submitAuthAction,
     authInitialState
   )
-
-  const nextPath = useMemo(() => {
-    const candidate = searchParams.get("next")
-    if (!candidate) {
-      return "/onboarding"
-    }
-    if (candidate.startsWith("/") && !candidate.startsWith("//")) {
-      return candidate
-    }
-    return "/onboarding"
-  }, [searchParams])
 
   return (
     <Card className="mx-auto w-full max-w-md">
