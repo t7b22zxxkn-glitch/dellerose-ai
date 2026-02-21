@@ -18,7 +18,10 @@ type WorkflowStoreState = {
   drafts: AgentOutput[]
   postPlans: PostPlan[]
   chatLog: WorkflowChatItem[]
-  hydrateFromPersistedSnapshot: (snapshot: WorkflowSnapshot) => void
+  hydrateFromPersistedSnapshot: (
+    snapshot: WorkflowSnapshot,
+    options?: { force?: boolean }
+  ) => void
   setBrainDumpResult: (transcript: string, brief: ContentBrief) => void
   setDrafts: (drafts: AgentOutput[]) => void
   replaceDraft: (nextDraft: AgentOutput) => void
@@ -123,9 +126,9 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
   persist(
     (set) => ({
       ...INITIAL_SNAPSHOT,
-      hydrateFromPersistedSnapshot: (snapshot) => {
+      hydrateFromPersistedSnapshot: (snapshot, options) => {
         set((state) => {
-          if (state.drafts.length > 0 || state.brief) {
+          if (!options?.force && (state.drafts.length > 0 || state.brief)) {
             return {}
           }
 

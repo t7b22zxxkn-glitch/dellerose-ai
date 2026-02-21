@@ -1,4 +1,4 @@
-import type { AgentOutput, ContentBrief, PostPlan } from "@/lib/types/domain"
+import type { AgentOutput, ContentBrief, Intent, PostPlan } from "@/lib/types/domain"
 
 export type WorkflowChatRole = "system" | "user" | "agent"
 
@@ -25,4 +25,14 @@ export type PersistedWorkflowSnapshot = {
   drafts: AgentOutput[]
   postPlans: PostPlan[]
   chatLog: WorkflowChatItem[]
+}
+
+export type WorkflowListItem = {
+  workflowId: string
+  coreMessage: string
+  intent: Intent
+  createdAt: string
+  postCount: number
+  hasScheduledPosts: boolean
+  hasPostedPosts: boolean
 }

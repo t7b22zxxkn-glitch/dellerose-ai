@@ -121,8 +121,12 @@ export async function upsertPostPlanAction(
       }
     }
 
-    const postStatus: "approved" | "scheduled" =
-      input.scheduledFor !== null ? "scheduled" : "approved"
+    const postStatus: "approved" | "scheduled" | "posted" =
+      input.draft.status === "posted"
+        ? "posted"
+        : input.scheduledFor !== null || input.draft.status === "scheduled"
+          ? "scheduled"
+          : "approved"
 
     const { error: postError } = await supabase.from("posts").upsert(
       {
@@ -138,7 +142,7 @@ export async function upsertPostPlanAction(
         publish_mode: "manual_copy",
         status: postStatus,
         scheduled_for: input.scheduledFor,
-        posted_at: null,
+        posted_at: postStatus === "posted" ? new Date().toISOString() : null,
       },
       { onConflict: "user_id,workflow_id,platform" }
     )

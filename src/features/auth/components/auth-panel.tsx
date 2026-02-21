@@ -22,9 +22,10 @@ type AuthMode = "sign-in" | "sign-up"
 
 type AuthPanelProps = {
   nextPath: string
+  notice?: string
 }
 
-export function AuthPanel({ nextPath }: AuthPanelProps) {
+export function AuthPanel({ nextPath, notice }: AuthPanelProps) {
   const [mode, setMode] = useState<AuthMode>("sign-in")
   const [state, formAction, isPending] = useActionState(
     submitAuthAction,
@@ -45,6 +46,13 @@ export function AuthPanel({ nextPath }: AuthPanelProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {notice ? (
+          <Alert>
+            <AlertTitle>Info</AlertTitle>
+            <AlertDescription>{notice}</AlertDescription>
+          </Alert>
+        ) : null}
+
         {state.status !== "idle" ? (
           <Alert variant={state.status === "error" ? "destructive" : "default"}>
             {state.status === "error" ? (

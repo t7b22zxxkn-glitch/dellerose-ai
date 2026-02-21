@@ -12,6 +12,11 @@ function badRequest(message: string) {
 
 export async function POST(request: Request) {
   try {
+    const mockTranscript = process.env.BRAIN_DUMP_MOCK_TRANSCRIPT?.trim()
+    if (mockTranscript) {
+      return NextResponse.json({ transcript: mockTranscript })
+    }
+
     if (!isOpenAIConfigured()) {
       return NextResponse.json(
         {

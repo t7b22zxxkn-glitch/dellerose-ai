@@ -34,6 +34,10 @@ type DraftCardProps = {
   transcript: string
   brief: ContentBrief
   draft: AgentOutput
+  persistDraft: (draft: AgentOutput) => Promise<{
+    success: boolean
+    message?: string
+  }>
   onReplaceDraft: (nextDraft: AgentOutput) => void
   onUpdateField: (
     platform: Platform,
@@ -68,6 +72,7 @@ function DraftPreviewCard({
   transcript,
   brief,
   draft,
+  persistDraft,
   onReplaceDraft,
   onUpdateField,
   onApproveAndPlan,
@@ -96,9 +101,26 @@ function DraftPreviewCard({
       return
     }
 
-    onUpdateField(draft.platform, editingField, trimmed)
-    setEditingField(null)
-    setCardErrorMessage(null)
+    startPersistPlan(async () => {
+      const nextDraft: AgentOutput =
+        editingField === "hook"
+          ? { ...draft, hook: trimmed }
+          : editingField === "body"
+            ? { ...draft, body: trimmed }
+            : { ...draft, cta: trimmed }
+
+      const persistResult = await persistDraft(nextDraft)
+      if (!persistResult.success) {
+        setCardErrorMessage(
+          persistResult.message ?? "Kunne ikke gemme draft i databasen."
+        )
+        return
+      }
+
+      onUpdateField(draft.platform, editingField, trimmed)
+      setEditingField(null)
+      setCardErrorMessage(null)
+    })
   }
 
   const cancelEdit = () => {
@@ -116,7 +138,20 @@ function DraftPreviewCard({
         return
       }
 
-      onReplaceDraft(result.output)
+      const regeneratedDraft: AgentOutput = {
+        ...result.output,
+        status: draft.status,
+      }
+
+      const persistResult = await persistDraft(regeneratedDraft)
+      if (!persistResult.success) {
+        setCardErrorMessage(
+          persistResult.message ?? "Kunne ikke gemme regenereret draft."
+        )
+        return
+      }
+
+      onReplaceDraft(regeneratedDraft)
       setCardErrorMessage(null)
     })
   }
@@ -266,10 +301,15 @@ function DraftPreviewCard({
 
         {editingField ? (
           <div className="flex items-center gap-2">
-            <Button type="button" onClick={saveField}>
+            <Button type="button" onClick={saveField} disabled={isPersistingPlan}>
               Gem felt
             </Button>
-            <Button type="button" variant="outline" onClick={cancelEdit}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={cancelEdit}
+              disabled={isPersistingPlan}
+            >
               Annuller
             </Button>
           </div>
@@ -315,10 +355,34 @@ export function CreativeRoomWorkspace() {
   const transcript = useWorkflowStore((state) => state.transcript)
   const brief = useWorkflowStore((state) => state.brief)
   const drafts = useWorkflowStore((state) => state.drafts)
+  const postPlans = useWorkflowStore((state) => state.postPlans)
   const chatLog = useWorkflowStore((state) => state.chatLog)
   const replaceDraft = useWorkflowStore((state) => state.replaceDraft)
   const updateDraftField = useWorkflowStore((state) => state.updateDraftField)
   const approveAndPlanDraft = useWorkflowStore((state) => state.approveAndPlanDraft)
+
+  const persistDraft = async (draft: AgentOutput) => {
+    const plan = postPlans.find((item) => item.platform === draft.platform)
+
+    const result = await upsertPostPlanAction({
+      workflowId,
+      transcript,
+      brief,
+      draft,
+      scheduledFor: plan?.scheduledFor ?? null,
+    })
+
+    if (!result.success) {
+      return {
+        success: false as const,
+        message: result.message,
+      }
+    }
+
+    return {
+      success: true as const,
+    }
+  }
 
   if (!brief || drafts.length === 0) {
     return (
@@ -401,6 +465,7 @@ export function CreativeRoomWorkspace() {
               transcript={transcript}
               brief={brief}
               draft={draft}
+              persistDraft={persistDraft}
               onReplaceDraft={replaceDraft}
               onUpdateField={updateDraftField}
               onApproveAndPlan={approveAndPlanDraft}

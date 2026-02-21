@@ -23,11 +23,15 @@ src/
       page.tsx
     scheduler/
       page.tsx
+    workflows/
+      page.tsx
     api/
       brain-dump/
         transcribe/route.ts
+        smoke/route.ts
     layout.tsx
     globals.css
+    proxy.ts
 
   features/
     auth/
@@ -60,7 +64,12 @@ src/
       components/
         scheduler-list.tsx
     workflow/
+      queries.ts
+      types.ts
       store.ts
+      components/
+        workflow-hydrator.tsx
+        workflow-library.tsx
 
   lib/
     agents/
@@ -112,4 +121,7 @@ src/
   keyed by `workflow_id`.
 - **Creative Room/Scheduler rehydration** loads latest persisted workflow from Supabase and
   hydrates client store when local state is empty.
+- **Workflow library** exposes persisted workflow history and allows explicit workflow switching
+  on Creative Room and Scheduler via URL query param.
 - **Auth** uses Supabase Auth with server actions for sign-in/up/out and protected app routes.
+- **Brain Dump smoke testing** can run against deployed env through `/api/brain-dump/smoke`.

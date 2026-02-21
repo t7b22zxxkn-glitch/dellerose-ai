@@ -46,7 +46,7 @@ export async function getOnboardingBootstrap(): Promise<OnboardingBootstrap> {
         profile: null,
         canSubmit: false,
         notice:
-          "Du skal være logget ind i Supabase Auth (eller sætte DELLEROSE_DEV_USER_ID lokalt) for at gemme en brand profile.",
+          "Du skal være logget ind i Supabase Auth for at gemme en brand profile.",
       }
     }
 

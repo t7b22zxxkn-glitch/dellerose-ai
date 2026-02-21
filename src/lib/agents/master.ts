@@ -18,6 +18,22 @@ Regler:
 - Svar SKAL passe til det givne schema.
 `.trim()
 
+function buildMockBriefFromTranscript(transcript: string): ContentBrief {
+  const normalizedTranscript = transcript.replace(/\s+/g, " ").trim()
+  const firstSentence = normalizedTranscript.split(/[.!?]/).find(Boolean)?.trim()
+  const coreMessage = firstSentence && firstSentence.length > 0
+    ? firstSentence
+    : normalizedTranscript.slice(0, 180)
+
+  return contentBriefSchema.parse({
+    coreMessage: coreMessage || "Ingen kernebesked udledt.",
+    intent: "update",
+    targetAudience: "Eksisterende følgere",
+    keyPoints: [coreMessage || normalizedTranscript || "Ingen input modtaget."],
+    emotionalTone: "neutral",
+  })
+}
+
 export async function generateContentBriefFromTranscript(
   transcript: string
 ): Promise<ContentBrief> {
@@ -25,6 +41,10 @@ export async function generateContentBriefFromTranscript(
 
   if (!cleanTranscript) {
     throw new Error("Transcript er tomt.")
+  }
+
+  if (process.env.BRAIN_DUMP_MOCK_BRIEF === "true") {
+    return buildMockBriefFromTranscript(cleanTranscript)
   }
 
   const openai = createOpenAIProvider()

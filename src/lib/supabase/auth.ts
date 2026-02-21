@@ -19,11 +19,17 @@ export async function resolveCurrentUserId(
     return user.id
   }
 
-  const devUserId = process.env.DELLEROSE_DEV_USER_ID
-  const parsedDevUserId = devUserIdSchema.safeParse(devUserId)
+  const allowDevFallback =
+    process.env.NODE_ENV !== "production" &&
+    process.env.ENABLE_DEV_USER_FALLBACK === "true"
 
-  if (parsedDevUserId.success) {
-    return parsedDevUserId.data
+  if (allowDevFallback) {
+    const devUserId = process.env.DELLEROSE_DEV_USER_ID
+    const parsedDevUserId = devUserIdSchema.safeParse(devUserId)
+
+    if (parsedDevUserId.success) {
+      return parsedDevUserId.data
+    }
   }
 
   return null

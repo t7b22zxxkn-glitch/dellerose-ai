@@ -65,9 +65,14 @@ export async function submitAuthAction(
       })
 
       if (error) {
+        const lowerMessage = error.message.toLowerCase()
+        const message = lowerMessage.includes("email not confirmed")
+          ? "Din email er ikke bekræftet endnu. Tjek inbox og prøv igen."
+          : "Login fejlede. Kontroller email og password."
+
         return {
           status: "error",
-          message: "Login fejlede. Kontroller email og password.",
+          message,
         }
       }
 
@@ -80,9 +85,14 @@ export async function submitAuthAction(
     })
 
     if (error) {
+      const lowerMessage = error.message.toLowerCase()
+      const message = lowerMessage.includes("user already registered")
+        ? "Denne email er allerede registreret. Brug login i stedet."
+        : "Kunne ikke oprette bruger. Prøv en anden email."
+
       return {
         status: "error",
-        message: "Kunne ikke oprette bruger. Prøv en anden email.",
+        message,
       }
     }
 

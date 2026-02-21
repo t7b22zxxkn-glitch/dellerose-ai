@@ -28,6 +28,9 @@ export async function AppHeader() {
             <Button asChild variant="ghost" size="sm">
               <Link href="/scheduler">Scheduler</Link>
             </Button>
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/workflows">Workflows</Link>
+            </Button>
           </nav>
         </div>
 

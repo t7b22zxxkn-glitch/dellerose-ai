@@ -7,9 +7,13 @@ import type { PersistedWorkflowSnapshot } from "@/features/workflow/types"
 
 type WorkflowHydratorProps = {
   snapshot: PersistedWorkflowSnapshot | null
+  forceHydrate?: boolean
 }
 
-export function WorkflowHydrator({ snapshot }: WorkflowHydratorProps) {
+export function WorkflowHydrator({
+  snapshot,
+  forceHydrate = false,
+}: WorkflowHydratorProps) {
   const hydrateFromPersistedSnapshot = useWorkflowStore(
     (state) => state.hydrateFromPersistedSnapshot
   )
@@ -19,8 +23,8 @@ export function WorkflowHydrator({ snapshot }: WorkflowHydratorProps) {
       return
     }
 
-    hydrateFromPersistedSnapshot(snapshot)
-  }, [hydrateFromPersistedSnapshot, snapshot])
+    hydrateFromPersistedSnapshot(snapshot, { force: forceHydrate })
+  }, [forceHydrate, hydrateFromPersistedSnapshot, snapshot])
 
   return null
 }

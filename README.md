@@ -37,6 +37,7 @@ OPENAI_API_KEY=...
 Optional for local development without login:
 
 ```bash
+ENABLE_DEV_USER_FALLBACK=true
 DELLEROSE_DEV_USER_ID=<uuid-from-auth.users>
 ```
 
@@ -55,6 +56,21 @@ Open `http://localhost:3000/brain-dump` to run voice Brain Dump.
 Open `http://localhost:3000/creative-room` for review and editing.
 Open `http://localhost:3000/scheduler` for scheduling flow.
 Open `http://localhost:3000/login` for Supabase Auth sign-in/up.
+Open `http://localhost:3000/workflows` for workflow history.
+
+Run local Brain Dump smoke test (mocked transcript + mocked brief):
+
+```bash
+pnpm run test:brain-dump
+```
+
+Run Brain Dump smoke test against preview/production (real OpenAI path):
+
+```bash
+BRAIN_DUMP_SMOKE_BASE_URL=https://your-preview-url.vercel.app \
+BRAIN_DUMP_SMOKE_KEY=your_smoke_key \
+pnpm run test:brain-dump:remote
+```
 
 ## Supabase + Vercel setup
 
@@ -86,6 +102,7 @@ If you use token-based auth in CI, set `SUPABASE_ACCESS_TOKEN` and
 - ✅ Supabase persistence for approved/scheduled/post status updates
 - ✅ Rehydration from Supabase on Creative Room/Scheduler load
 - ✅ Supabase Auth login flow (sign in, sign up, sign out)
+- ✅ Workflow history list with selectable workflow hydration
 
 ## Architecture
 
