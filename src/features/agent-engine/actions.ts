@@ -237,8 +237,9 @@ export async function generatePlatformDraftsAction(
     }
 
     const onboarding = await getOnboardingBootstrap()
+    const brandProfile = onboarding.profile
 
-    if (!onboarding.profile) {
+    if (!brandProfile) {
       return {
         success: false,
         message:
@@ -249,7 +250,7 @@ export async function generatePlatformDraftsAction(
 
     const input = {
       brief: parsedBrief.data,
-      brandProfile: onboarding.profile,
+      brandProfile,
     }
 
     const settledDrafts = await Promise.all(
@@ -302,8 +303,9 @@ export async function regeneratePlatformDraftAction(
     }
 
     const onboarding = await getOnboardingBootstrap()
+    const brandProfile = onboarding.profile
 
-    if (!onboarding.profile) {
+    if (!brandProfile) {
       return {
         success: false,
         message:
@@ -316,7 +318,7 @@ export async function regeneratePlatformDraftAction(
       try {
         return await platformGenerators[parsedPlatform.data]({
           brief: parsedBrief.data,
-          brandProfile: onboarding.profile,
+          brandProfile,
         })
       } catch {
         return buildFallbackAgentOutput(parsedPlatform.data, parsedBrief.data)
