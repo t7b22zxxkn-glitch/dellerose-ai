@@ -51,7 +51,9 @@ const updatePostPlanStatusInputSchema = z
     }
   })
 
-type SchedulerActionResult = ActionResult<{}>
+type SchedulerActionResult = ActionResult<{
+  persisted: boolean
+}>
 
 const ACTION_UPSERT_POST_PLAN = "scheduler.upsert_post_plan"
 const ACTION_UPDATE_POST_PLAN_STATUS = "scheduler.update_post_plan_status"
@@ -197,7 +199,7 @@ export async function upsertPostPlanAction(
         userId,
         workflowId: input.workflowId,
         platform: input.draft.platform,
-        errorType: briefError?.code ?? null,
+        errorType: briefError?.code ?? undefined,
       })
     }
 
@@ -253,7 +255,7 @@ export async function upsertPostPlanAction(
       },
     })
 
-    return createActionSuccess(requestId, {})
+    return createActionSuccess(requestId, { persisted: true })
   } catch (error: unknown) {
     return fail({
       code: "internal_error",
@@ -423,7 +425,7 @@ export async function updatePersistedPostPlanStatusAction(
       },
     })
 
-    return createActionSuccess(requestId, {})
+    return createActionSuccess(requestId, { persisted: true })
   } catch (error: unknown) {
     return fail({
       code: "internal_error",
