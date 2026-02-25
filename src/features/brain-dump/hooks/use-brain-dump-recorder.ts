@@ -9,6 +9,7 @@ import {
   getWorkflowSnapshot,
   useWorkflowStore,
 } from "@/features/workflow/store"
+import { formatActionErrorMessage } from "@/lib/server-actions/contracts"
 import type { AgentOutput, ContentBrief } from "@/lib/types/domain"
 
 export type BrainDumpStage =
@@ -140,7 +141,7 @@ export function useBrainDumpRecorder(): UseBrainDumpRecorderState &
       const analysisResult = await analyzeTranscriptAction(nextTranscript)
 
       if (!analysisResult.success) {
-        throw new Error(analysisResult.message)
+        throw new Error(formatActionErrorMessage(analysisResult))
       }
 
       const nextBrief = analysisResult.brief
@@ -263,7 +264,7 @@ export function useBrainDumpRecorder(): UseBrainDumpRecorderState &
 
       if (!result.success) {
         setPlatformDrafts([])
-        setPlatformDraftErrorMessage(result.message)
+        setPlatformDraftErrorMessage(formatActionErrorMessage(result))
         return
       }
 

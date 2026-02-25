@@ -6,6 +6,7 @@ import { CalendarDays, CheckCircle2, ClipboardCopy, Clock3 } from "lucide-react"
 
 import { updatePersistedPostPlanStatusAction } from "@/features/scheduler/actions"
 import { useWorkflowStore } from "@/features/workflow/store"
+import { formatActionErrorMessage } from "@/lib/server-actions/contracts"
 import type { PostPlan } from "@/lib/types/domain"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -208,7 +209,7 @@ export function SchedulerList() {
                         })
 
                         if (!result.success) {
-                          setFeedbackMessage(result.message)
+                          setFeedbackMessage(formatActionErrorMessage(result))
                           return
                         }
 
@@ -230,7 +231,7 @@ export function SchedulerList() {
                         })
 
                         if (!result.success) {
-                          setFeedbackMessage(result.message)
+                          setFeedbackMessage(formatActionErrorMessage(result))
                           return
                         }
 
