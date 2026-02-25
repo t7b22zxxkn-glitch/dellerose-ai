@@ -13,6 +13,7 @@ import {
 import { regeneratePlatformDraftAction } from "@/features/agent-engine/actions"
 import { upsertPostPlanAction } from "@/features/scheduler/actions"
 import { useWorkflowStore } from "@/features/workflow/store"
+import { formatActionErrorMessage } from "@/lib/server-actions/contracts"
 import type { AgentOutput, ContentBrief, Platform } from "@/lib/types/domain"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -134,7 +135,7 @@ function DraftPreviewCard({
       const result = await regeneratePlatformDraftAction(draft.platform, brief)
 
       if (!result.success) {
-        setCardErrorMessage(result.message)
+        setCardErrorMessage(formatActionErrorMessage(result))
         return
       }
 
@@ -173,7 +174,7 @@ function DraftPreviewCard({
       })
 
       if (!result.success) {
-        setCardErrorMessage(result.message)
+        setCardErrorMessage(formatActionErrorMessage(result))
         return
       }
 
@@ -375,7 +376,7 @@ export function CreativeRoomWorkspace() {
     if (!result.success) {
       return {
         success: false as const,
-        message: result.message,
+        message: formatActionErrorMessage(result),
       }
     }
 
