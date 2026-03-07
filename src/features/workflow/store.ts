@@ -31,7 +31,11 @@ type WorkflowStoreState = {
     value: string
   ) => void
   approveAndPlanDraft: (platform: Platform, scheduledFor: string | null) => void
-  setPlanScheduled: (planId: string, scheduledFor: string) => void
+  setPlanScheduled: (
+    planId: string,
+    scheduledFor: string,
+    publishJob?: PostPlan["publishJob"]
+  ) => void
   markPlanPosted: (planId: string) => void
   resetWorkflow: () => void
 }
@@ -104,6 +108,7 @@ function toPostPlan(draft: AgentOutput, scheduledFor: string | null): PostPlan {
     visualSuggestion: draft.visualSuggestion,
     status: scheduledFor ? "scheduled" : "pending",
     scheduledFor,
+    publishJob: null,
   }
 }
 
@@ -120,6 +125,17 @@ function upsertPlanByPlatform(
   const updated = [...plans]
   updated[index] = { ...nextPlan, id: updated[index].id }
   return updated
+}
+
+function normalizePostPlans(plans: PostPlan[] | undefined): PostPlan[] {
+  if (!plans) {
+    return []
+  }
+
+  return plans.map((plan) => ({
+    ...plan,
+    publishJob: plan.publishJob ?? null,
+  }))
 }
 
 export const useWorkflowStore = create<WorkflowStoreState>()(
@@ -247,7 +263,7 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
           }
         })
       },
-      setPlanScheduled: (planId, scheduledFor) => {
+      setPlanScheduled: (planId, scheduledFor, publishJob) => {
         set((state) => {
           const nextPlans: PostPlan[] = state.postPlans.map((plan): PostPlan => {
             if (plan.id !== planId) {
@@ -258,6 +274,7 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
               ...plan,
               status: "scheduled",
               scheduledFor,
+              publishJob: publishJob ?? plan.publishJob,
             }
           })
 
@@ -287,7 +304,18 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
               return plan
             }
 
-            return { ...plan, status: "posted" }
+            return {
+              ...plan,
+              status: "posted",
+              publishJob: plan.publishJob
+                ? {
+                    ...plan.publishJob,
+                    status: "published",
+                    nextRetryAt: null,
+                    updatedAt: nowIso(),
+                  }
+                : plan.publishJob,
+            }
           })
 
           const affectedPlatform =
@@ -335,6 +363,7 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
         return {
           ...INITIAL_SNAPSHOT,
           ...state,
+          postPlans: normalizePostPlans(state.postPlans),
           workflowId: ensureValidWorkflowId(state.workflowId),
         } as WorkflowStoreState
       },

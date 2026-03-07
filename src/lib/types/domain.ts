@@ -14,6 +14,12 @@ export type Platform =
 
 export type PostStatus = "draft" | "approved" | "scheduled" | "posted"
 export type PlanStatus = "pending" | "scheduled" | "posted"
+export type PublishJobStatus =
+  | "queued"
+  | "processing"
+  | "retrying"
+  | "failed"
+  | "published"
 
 export type BrandProfile = {
   id: string
@@ -54,4 +60,13 @@ export type PostPlan = {
   visualSuggestion: string
   status: PlanStatus
   scheduledFor: string | null
+  publishJob:
+    | {
+        status: PublishJobStatus
+        attemptCount: number
+        nextRetryAt: string | null
+        lastError: string | null
+        updatedAt: string | null
+      }
+    | null
 }

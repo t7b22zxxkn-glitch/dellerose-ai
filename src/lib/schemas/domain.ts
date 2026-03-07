@@ -24,6 +24,13 @@ export const postStatusSchema = z.enum([
 ])
 
 export const planStatusSchema = z.enum(["pending", "scheduled", "posted"])
+export const publishJobStatusSchema = z.enum([
+  "queued",
+  "processing",
+  "retrying",
+  "failed",
+  "published",
+])
 
 export const brandProfileSchema = z.object({
   id: z.string().uuid(),
@@ -54,6 +61,14 @@ export const agentOutputSchema = z.object({
   status: postStatusSchema,
 })
 
+export const publishJobSnapshotSchema = z.object({
+  status: publishJobStatusSchema,
+  attemptCount: z.number().int().min(0),
+  nextRetryAt: z.string().datetime().nullable(),
+  lastError: z.string().nullable(),
+  updatedAt: z.string().nullable(),
+})
+
 export const postPlanSchema = z.object({
   id: z.string().min(1),
   platform: platformSchema,
@@ -64,4 +79,5 @@ export const postPlanSchema = z.object({
   visualSuggestion: z.string().min(1),
   status: planStatusSchema,
   scheduledFor: z.string().datetime().nullable(),
+  publishJob: publishJobSnapshotSchema.nullable(),
 })

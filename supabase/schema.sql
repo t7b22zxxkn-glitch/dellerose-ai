@@ -210,6 +210,98 @@ $$;
 
 do $$
 begin
+  create type public.publish_job_status as enum (
+    'queued',
+    'processing',
+    'retrying',
+    'failed',
+    'published'
+  );
+exception
+  when duplicate_object then null;
+end
+$$;
+
+create table if not exists public.publish_jobs (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  workflow_id uuid not null,
+  platform public.social_platform not null,
+  post_id uuid not null references public.posts(id) on delete cascade,
+  idempotency_key text not null,
+  status public.publish_job_status not null default 'queued',
+  attempt_count integer not null default 0 check (attempt_count >= 0),
+  max_attempts integer not null default 5 check (max_attempts between 1 and 20),
+  next_retry_at timestamptz,
+  last_error text,
+  dead_lettered_at timestamptz,
+  published_at timestamptz,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now()),
+  constraint publish_jobs_dead_letter_guard check (
+    status <> 'failed' or dead_lettered_at is not null
+  )
+);
+
+create unique index if not exists publish_jobs_user_id_idempotency_key_uidx
+  on public.publish_jobs (user_id, idempotency_key);
+
+create index if not exists publish_jobs_user_status_retry_idx
+  on public.publish_jobs (user_id, status, next_retry_at);
+
+create index if not exists publish_jobs_user_workflow_platform_updated_idx
+  on public.publish_jobs (user_id, workflow_id, platform, updated_at desc);
+
+drop trigger if exists publish_jobs_set_updated_at on public.publish_jobs;
+create trigger publish_jobs_set_updated_at
+before update on public.publish_jobs
+for each row execute function public.set_updated_at();
+
+alter table public.publish_jobs enable row level security;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'publish_jobs'
+      and policyname = 'publish_jobs_select_own'
+  ) then
+    create policy publish_jobs_select_own
+      on public.publish_jobs
+      for select
+      using (auth.uid() = user_id);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'publish_jobs'
+      and policyname = 'publish_jobs_insert_own'
+  ) then
+    create policy publish_jobs_insert_own
+      on public.publish_jobs
+      for insert
+      with check (auth.uid() = user_id);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'publish_jobs'
+      and policyname = 'publish_jobs_update_own'
+  ) then
+    create policy publish_jobs_update_own
+      on public.publish_jobs
+      for update
+      using (auth.uid() = user_id)
+      with check (auth.uid() = user_id);
+  end if;
+end
+$$;
+
+do $$
+begin
   if not exists (
     select 1 from pg_policies
     where schemaname = 'public'

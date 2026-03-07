@@ -63,6 +63,24 @@ function getStatusLabel(status: PostPlan["status"]): string {
   return "posted"
 }
 
+function getPublishJobStatusClassName(
+  status: NonNullable<PostPlan["publishJob"]>["status"]
+): string {
+  if (status === "queued") {
+    return "bg-slate-100 text-slate-900 border-slate-200"
+  }
+  if (status === "processing") {
+    return "bg-purple-100 text-purple-900 border-purple-200"
+  }
+  if (status === "retrying") {
+    return "bg-amber-100 text-amber-900 border-amber-200"
+  }
+  if (status === "failed") {
+    return "bg-rose-100 text-rose-900 border-rose-200"
+  }
+  return "bg-emerald-100 text-emerald-900 border-emerald-200"
+}
+
 function sortPlansByDate(plans: PostPlan[]): PostPlan[] {
   return [...plans].sort((left, right) => {
     const leftTime = left.scheduledFor ? new Date(left.scheduledFor).getTime() : Infinity
@@ -148,6 +166,29 @@ export function SchedulerList() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 text-sm">
+              {plan.publishJob ? (
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span
+                    className={`rounded-md border px-2 py-1 font-medium ${getPublishJobStatusClassName(plan.publishJob.status)}`}
+                  >
+                    job: {plan.publishJob.status}
+                  </span>
+                  <span className="text-muted-foreground">
+                    attempts: {plan.publishJob.attemptCount}
+                  </span>
+                  {plan.publishJob.nextRetryAt ? (
+                    <span className="text-muted-foreground">
+                      next retry: {formatDateTime(plan.publishJob.nextRetryAt)}
+                    </span>
+                  ) : null}
+                  {plan.publishJob.lastError ? (
+                    <span className="text-muted-foreground">
+                      error: {plan.publishJob.lastError}
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+
               <p className="font-medium">{plan.hook}</p>
               <p>{plan.body}</p>
               <p>{plan.cta}</p>
@@ -213,7 +254,7 @@ export function SchedulerList() {
                           return
                         }
 
-                        setPlanScheduled(plan.id, scheduledFor)
+                        setPlanScheduled(plan.id, scheduledFor, result.publishJob ?? null)
                         setFeedbackMessage(`${plan.platform} blev sat til scheduled.`)
                       }}
                     >

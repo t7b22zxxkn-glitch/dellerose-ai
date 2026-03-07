@@ -6,6 +6,7 @@ import { agentOutputSchema, contentBriefSchema, postPlanSchema } from "@/lib/sch
 import { resolveCurrentUserId } from "@/lib/supabase/auth"
 import { isSupabaseConfigured } from "@/lib/supabase/config"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import type { PostPlan } from "@/lib/types/domain"
 import type {
   PersistedWorkflowSnapshot,
   WorkflowListItem,
@@ -43,6 +44,16 @@ const postRowSchema = z.object({
   visual_suggestion: z.string(),
   status: z.enum(["draft", "approved", "scheduled", "posted"]),
   scheduled_for: z.string().nullable(),
+})
+
+const publishJobRowSchema = z.object({
+  workflow_id: z.string().uuid(),
+  platform: z.enum(["linkedin", "tiktok", "instagram", "facebook", "twitter"]),
+  status: z.enum(["queued", "processing", "retrying", "failed", "published"]),
+  attempt_count: z.number().int().min(0),
+  next_retry_at: z.string().nullable(),
+  last_error: z.string().nullable(),
+  updated_at: z.string().nullable(),
 })
 
 const workflowPostStateRowSchema = z.object({
@@ -95,7 +106,8 @@ async function getSupabaseWithUser() {
 
 function buildSnapshotFromRows(
   briefRow: z.infer<typeof briefRowSchema>,
-  postRows: z.infer<typeof postRowSchema>[]
+  postRows: z.infer<typeof postRowSchema>[],
+  publishJobByPlatform: Map<string, NonNullable<PostPlan["publishJob"]>>
 ): PersistedWorkflowSnapshot {
   const brief = contentBriefSchema.parse({
     coreMessage: briefRow.core_message,
@@ -128,6 +140,7 @@ function buildSnapshotFromRows(
       visualSuggestion: post.visual_suggestion,
       status: mapStatusToPlanStatus(post.status),
       scheduledFor: post.scheduled_for,
+      publishJob: publishJobByPlatform.get(post.platform) ?? null,
     })
   )
 
@@ -146,6 +159,41 @@ function buildSnapshotFromRows(
       },
     ],
   }
+}
+
+function toIsoOrNull(value: string | null): string | null {
+  if (!value) {
+    return null
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+
+  return date.toISOString()
+}
+
+function buildLatestPublishJobByPlatform(
+  rows: z.infer<typeof publishJobRowSchema>[]
+): Map<string, NonNullable<PostPlan["publishJob"]>> {
+  const map = new Map<string, NonNullable<PostPlan["publishJob"]>>()
+
+  for (const row of rows) {
+    if (map.has(row.platform)) {
+      continue
+    }
+
+    map.set(row.platform, {
+      status: row.status,
+      attemptCount: row.attempt_count,
+      nextRetryAt: toIsoOrNull(row.next_retry_at),
+      lastError: row.last_error,
+      updatedAt: toIsoOrNull(row.updated_at),
+    })
+  }
+
+  return map
 }
 
 export async function getPersistedWorkflowList(
@@ -344,8 +392,35 @@ export async function getPersistedWorkflowSnapshotById(
       }
     }
 
+    const { data: publishJobRows, error: publishJobsError } = await supabase
+      .from("publish_jobs")
+      .select(
+        "workflow_id, platform, status, attempt_count, next_retry_at, last_error, updated_at"
+      )
+      .eq("user_id", userId)
+      .eq("workflow_id", parsedWorkflowId.data)
+      .order("updated_at", { ascending: false })
+
+    const publishJobByPlatform = new Map<string, NonNullable<PostPlan["publishJob"]>>()
+    if (!publishJobsError) {
+      const parsedPublishJobRows = z
+        .array(publishJobRowSchema)
+        .safeParse(publishJobRows ?? [])
+
+      if (parsedPublishJobRows.success) {
+        const latestJobs = buildLatestPublishJobByPlatform(parsedPublishJobRows.data)
+        for (const [platform, job] of latestJobs.entries()) {
+          publishJobByPlatform.set(platform, job)
+        }
+      }
+    }
+
     return {
-      snapshot: buildSnapshotFromRows(parsedBriefRow.data, parsedPostRows.data),
+      snapshot: buildSnapshotFromRows(
+        parsedBriefRow.data,
+        parsedPostRows.data,
+        publishJobByPlatform
+      ),
       notice: null,
     }
   } catch {
