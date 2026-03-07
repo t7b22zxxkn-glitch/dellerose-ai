@@ -107,3 +107,7 @@ If you use token-based auth in CI, set `SUPABASE_ACCESS_TOKEN` and
 ## Architecture
 
 See `docs/architecture.md` for folder structure and module boundaries.
+
+## Acceptance checklists
+
+- Scheduler automation: `docs/acceptance/scheduler-automation.md`
