@@ -40,9 +40,22 @@ Required Vercel env vars:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` (required for scheduler worker)
 - `OPENAI_API_KEY`
 - `BRAIN_DUMP_SMOKE_KEY` (optional but recommended for smoke endpoint auth)
+- `SCHEDULER_WORKER_KEY` (optional for manual worker triggers)
+- `CRON_SECRET` (recommended for Vercel cron auth)
 - `ENABLE_DEV_USER_FALLBACK` + `DELLEROSE_DEV_USER_ID` (optional local-only fallback)
+
+Scheduler worker endpoint:
+
+- `GET /api/scheduler/publish-worker`
+- `POST /api/scheduler/publish-worker`
+
+Auth options:
+
+- Header `Authorization: Bearer <CRON_SECRET>`
+- Header `x-worker-key: <SCHEDULER_WORKER_KEY>`
 
 ## 3) Verification
 
@@ -56,6 +69,7 @@ After linking:
    - `/brain-dump` can transcribe/analyze
    - `/creative-room` can approve/plan
    - `/scheduler` can update status and persist to Supabase
+   - `/api/scheduler/publish-worker?dryRun=true` returns a valid worker summary
 
 Smoke test (from local shell):
 
