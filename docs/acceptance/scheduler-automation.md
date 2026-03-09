@@ -112,6 +112,21 @@ Expected:
 
 ---
 
+## 6b) Manual requeue from Scheduler
+
+Steps:
+
+1. Find a failed job entry in Scheduler
+2. Click **Prøv igen i kø**
+
+Expected:
+
+- [ ] Failed job moves back to `queued`
+- [ ] Attempt counter is reset for a new retry cycle
+- [ ] UI reflects updated publish job status
+
+---
+
 ## 7) Manual fallback still works
 
 Steps:

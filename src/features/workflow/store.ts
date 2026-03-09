@@ -36,6 +36,7 @@ type WorkflowStoreState = {
     scheduledFor: string,
     publishJob?: PostPlan["publishJob"]
   ) => void
+  setPlanPublishJob: (planId: string, publishJob: PostPlan["publishJob"]) => void
   markPlanPosted: (planId: string) => void
   resetWorkflow: () => void
 }
@@ -296,6 +297,19 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
             ),
           }
         })
+      },
+      setPlanPublishJob: (planId, publishJob) => {
+        set((state) => ({
+          workflowId: ensureValidWorkflowId(state.workflowId),
+          postPlans: state.postPlans.map((plan) =>
+            plan.id === planId ? { ...plan, publishJob } : plan
+          ),
+          chatLog: appendChatLog(
+            state.chatLog,
+            "system",
+            "Publish job status blev opdateret."
+          ),
+        }))
       },
       markPlanPosted: (planId) => {
         set((state) => {

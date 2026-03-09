@@ -60,6 +60,7 @@ const ACTION_UPSERT_POST_PLAN = "scheduler.upsert_post_plan"
 const ACTION_UPDATE_POST_PLAN_STATUS = "scheduler.update_post_plan_status"
 const ACTION_ENQUEUE_PUBLISH_JOB = "scheduler.enqueue_publish_job"
 const ACTION_PROCESS_PUBLISH_JOB_ATTEMPT = "scheduler.process_publish_job_attempt"
+const ACTION_REQUEUE_PUBLISH_JOB = "scheduler.requeue_publish_job"
 
 const PUBLISH_JOB_MAX_ATTEMPTS = 5
 const RETRY_BASE_DELAY_MS = 60_000
@@ -68,6 +69,11 @@ const enqueuePublishJobInputSchema = z.object({
   workflowId: z.string().uuid(),
   platform: platformSchema,
   scheduledFor: isoDateTimeSchema.nullable().optional(),
+})
+
+const requeuePublishJobInputSchema = z.object({
+  workflowId: z.string().uuid(),
+  platform: platformSchema,
 })
 
 const processPublishJobAttemptInputSchema = z
@@ -98,6 +104,10 @@ type ProcessPublishJobAttemptActionResult = ActionResult<{
   attemptCount: number
   nextRetryAt: string | null
   deadLettered: boolean
+}>
+
+type RequeuePublishJobActionResult = ActionResult<{
+  publishJob: NonNullable<PostPlan["publishJob"]>
 }>
 
 function toPostStatusFromPlanStatus(
@@ -859,6 +869,220 @@ export async function updatePersistedPostPlanStatusAction(
     return fail({
       code: "internal_error",
       message: "Uventet fejl under opdatering af post-plan.",
+      retryable: true,
+      errorType: error instanceof Error ? error.name : "UnknownError",
+    })
+  }
+}
+
+export async function requeuePublishJobAction(
+  rawInput: unknown
+): Promise<RequeuePublishJobActionResult> {
+  const requestId = createRequestId()
+  const startedAt = Date.now()
+  const resolveLatencyMs = () => Date.now() - startedAt
+  let workflowId: string | null = null
+  let platform: string | null = null
+
+  const fail = (input: {
+    code:
+      | "invalid_input"
+      | "missing_dependency"
+      | "unauthorized"
+      | "not_found"
+      | "database_error"
+      | "validation_failed"
+      | "internal_error"
+    message: string
+    retryable: boolean
+    userId?: string | null
+    workflowId?: string | null
+    platform?: string | null
+    logLevel?: "warn" | "error"
+    errorType?: string
+    metadata?: Record<string, unknown>
+  }) => {
+    const failure = createActionFailure({
+      code: input.code,
+      message: input.message,
+      retryable: input.retryable,
+      requestId,
+    })
+
+    const logPayload = {
+      requestId,
+      actionName: ACTION_REQUEUE_PUBLISH_JOB,
+      userId: input.userId ?? null,
+      workflowId: input.workflowId ?? workflowId,
+      platform: input.platform ?? platform,
+      latencyMs: resolveLatencyMs(),
+      errorCode: failure.code,
+      errorType: input.errorType ?? null,
+      message: failure.message,
+      metadata: {
+        retryable: failure.retryable,
+        ...(input.metadata ?? {}),
+      },
+    }
+
+    if (input.logLevel === "warn") {
+      logActionWarn(logPayload)
+    } else {
+      logActionError(logPayload)
+    }
+
+    return failure
+  }
+
+  try {
+    if (!isSupabaseConfigured()) {
+      return fail({
+        code: "missing_dependency",
+        message: "Supabase er ikke konfigureret. Kan ikke requeue publish job.",
+        retryable: false,
+        logLevel: "warn",
+      })
+    }
+
+    const parsedInput = requeuePublishJobInputSchema.safeParse(rawInput)
+    if (!parsedInput.success) {
+      return fail({
+        code: "invalid_input",
+        message: "Requeue input kunne ikke valideres.",
+        retryable: false,
+        logLevel: "warn",
+        metadata: {
+          issueCount: parsedInput.error.issues.length,
+        },
+      })
+    }
+
+    const input = parsedInput.data
+    workflowId = input.workflowId
+    platform = input.platform
+
+    const supabase = await createSupabaseServerClient()
+    const userId = await resolveCurrentUserId(supabase)
+
+    if (!userId) {
+      return fail({
+        code: "unauthorized",
+        message: "Du skal være logget ind for at requeue publish jobs.",
+        retryable: false,
+        workflowId: input.workflowId,
+        platform: input.platform,
+        logLevel: "warn",
+      })
+    }
+
+    const publishJobRowSchema = z.object({
+      id: z.string().uuid(),
+      status: z.enum(["queued", "processing", "retrying", "failed", "published"]),
+      attempt_count: z.number().int().min(0),
+      next_retry_at: z.string().nullable(),
+      last_error: z.string().nullable(),
+      updated_at: z.string().nullable(),
+    })
+
+    const { data: failedJob, error: failedJobLookupError } = await supabase
+      .from("publish_jobs")
+      .select("id, status, attempt_count, next_retry_at, last_error, updated_at")
+      .eq("user_id", userId)
+      .eq("workflow_id", input.workflowId)
+      .eq("platform", input.platform)
+      .eq("status", "failed")
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (failedJobLookupError) {
+      return fail({
+        code: "database_error",
+        message: "Kunne ikke slå failed publish job op til requeue.",
+        retryable: true,
+        userId,
+        workflowId: input.workflowId,
+        platform: input.platform,
+        errorType: failedJobLookupError.code,
+      })
+    }
+
+    if (!failedJob) {
+      return fail({
+        code: "not_found",
+        message: "Ingen failed publish job fundet til requeue.",
+        retryable: false,
+        userId,
+        workflowId: input.workflowId,
+        platform: input.platform,
+        logLevel: "warn",
+      })
+    }
+
+    const { data: requeuedJob, error: requeueError } = await supabase
+      .from("publish_jobs")
+      .update({
+        status: "queued",
+        attempt_count: 0,
+        next_retry_at: null,
+        last_error: null,
+        dead_lettered_at: null,
+      })
+      .eq("id", failedJob.id)
+      .eq("user_id", userId)
+      .select("id, status, attempt_count, next_retry_at, last_error, updated_at")
+      .single()
+
+    if (requeueError || !requeuedJob) {
+      return fail({
+        code: "database_error",
+        message: "Kunne ikke flytte publish job tilbage til queue.",
+        retryable: true,
+        userId,
+        workflowId: input.workflowId,
+        platform: input.platform,
+        errorType: requeueError?.code,
+      })
+    }
+
+    const parsedRequeuedJob = publishJobRowSchema.safeParse(requeuedJob)
+    if (!parsedRequeuedJob.success) {
+      return fail({
+        code: "validation_failed",
+        message: "Requeued publish job kunne ikke valideres.",
+        retryable: false,
+        userId,
+        workflowId: input.workflowId,
+        platform: input.platform,
+      })
+    }
+
+    const publishJob = toPublishJobSnapshot({
+      status: parsedRequeuedJob.data.status,
+      attemptCount: parsedRequeuedJob.data.attempt_count,
+      nextRetryAt: parsedRequeuedJob.data.next_retry_at,
+      lastError: parsedRequeuedJob.data.last_error,
+      updatedAt: parsedRequeuedJob.data.updated_at,
+    })
+
+    logActionInfo({
+      requestId,
+      actionName: ACTION_REQUEUE_PUBLISH_JOB,
+      userId,
+      workflowId: input.workflowId,
+      platform: input.platform,
+      latencyMs: resolveLatencyMs(),
+      message: "Failed publish job was manually requeued.",
+      metadata: {
+        publishJobStatus: publishJob.status,
+      },
+    })
+
+    return createActionSuccess(requestId, { publishJob })
+  } catch (error: unknown) {
+    return fail({
+      code: "internal_error",
+      message: "Uventet fejl under requeue af publish job.",
       retryable: true,
       errorType: error instanceof Error ? error.name : "UnknownError",
     })

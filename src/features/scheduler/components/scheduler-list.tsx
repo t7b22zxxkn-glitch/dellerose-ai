@@ -4,7 +4,10 @@ import Link from "next/link"
 import { useMemo, useState } from "react"
 import { CalendarDays, CheckCircle2, ClipboardCopy, Clock3 } from "lucide-react"
 
-import { updatePersistedPostPlanStatusAction } from "@/features/scheduler/actions"
+import {
+  requeuePublishJobAction,
+  updatePersistedPostPlanStatusAction,
+} from "@/features/scheduler/actions"
 import { useWorkflowStore } from "@/features/workflow/store"
 import { formatActionErrorMessage } from "@/lib/server-actions/contracts"
 import type { PostPlan } from "@/lib/types/domain"
@@ -102,6 +105,7 @@ export function SchedulerList() {
   const workflowId = useWorkflowStore((state) => state.workflowId)
   const plans = useWorkflowStore((state) => state.postPlans)
   const setPlanScheduled = useWorkflowStore((state) => state.setPlanScheduled)
+  const setPlanPublishJob = useWorkflowStore((state) => state.setPlanPublishJob)
   const markPlanPosted = useWorkflowStore((state) => state.markPlanPosted)
   const [draftDateByPlanId, setDraftDateByPlanId] = useState<Record<string, string>>({})
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null)
@@ -284,6 +288,31 @@ export function SchedulerList() {
                       Markér posted
                     </Button>
                   )}
+
+                  {plan.publishJob?.status === "failed" ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={async () => {
+                        const result = await requeuePublishJobAction({
+                          workflowId,
+                          platform: plan.platform,
+                        })
+
+                        if (!result.success) {
+                          setFeedbackMessage(formatActionErrorMessage(result))
+                          return
+                        }
+
+                        setPlanPublishJob(plan.id, result.publishJob)
+                        setFeedbackMessage(
+                          `${plan.platform} publish job blev flyttet tilbage til queue.`
+                        )
+                      }}
+                    >
+                      Prøv igen i kø
+                    </Button>
+                  ) : null}
                 </div>
               ) : null}
             </CardContent>
