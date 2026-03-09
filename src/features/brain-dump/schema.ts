@@ -13,3 +13,9 @@ export const analyzeRequestSchema = z.object({
 export const analyzeResponseSchema = z.object({
   brief: contentBriefSchema,
 })
+
+export const mediaContextResponseSchema = z.object({
+  mediaContext: z.string().trim().min(1),
+  imageCount: z.number().int().min(0),
+  videoCount: z.number().int().min(0),
+})

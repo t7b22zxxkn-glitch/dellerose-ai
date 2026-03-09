@@ -45,6 +45,7 @@ Required Vercel env vars:
 - `BRAIN_DUMP_SMOKE_KEY` (optional but recommended for smoke endpoint auth)
 - `SCHEDULER_WORKER_KEY` (optional for manual worker triggers)
 - `CRON_SECRET` (recommended for Vercel cron auth)
+- `SCHEDULER_SIMULATION_MODE=true` (recommended in pre-live test env; marks jobs as published without real platform posting)
 - `ENABLE_DEV_USER_FALLBACK` + `DELLEROSE_DEV_USER_ID` (optional local-only fallback)
 
 Scheduler worker endpoint:
@@ -69,6 +70,7 @@ After linking:
    - `/brain-dump` can transcribe/analyze
    - `/creative-room` can approve/plan
    - `/scheduler` can update status and persist to Supabase
+   - scheduled jobs move through queue and complete on time in simulation mode
    - `/api/scheduler/publish-worker?dryRun=true` returns a valid worker summary
 
 Smoke test (from local shell):

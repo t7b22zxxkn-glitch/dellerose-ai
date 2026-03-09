@@ -21,6 +21,7 @@ Validates:
 - [ ] Supabase schema includes `publish_jobs`
 - [ ] At least one workflow exists with an approved draft
 - [ ] Branch is up-to-date and app starts successfully
+- [ ] In test environment, `SCHEDULER_SIMULATION_MODE=true`
 
 ---
 
@@ -80,6 +81,7 @@ Expected:
 - [ ] `published_at` is populated
 - [ ] Post status is `posted`
 - [ ] `next_retry_at` and `last_error` are cleared
+- [ ] No external platform API call is executed in simulation mode
 
 ---
 

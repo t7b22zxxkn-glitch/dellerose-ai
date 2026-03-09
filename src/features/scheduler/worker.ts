@@ -371,6 +371,15 @@ export async function runPublishWorker(rawInput: unknown): Promise<PublishWorker
 
     if (connectorResult.outcome === "success") {
       await supabase
+        .from("posts")
+        .update({
+          status: "posted",
+          posted_at: nowIso,
+        })
+        .eq("id", claimedJob.post_id)
+        .eq("user_id", claimedJob.user_id)
+
+      await supabase
         .from("publish_jobs")
         .update({
           status: "published",

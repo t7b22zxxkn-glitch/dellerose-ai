@@ -27,6 +27,12 @@ const MANUAL_RECHECK_DELAY_MS = 6 * 60 * 60 * 1000
 export async function runPublishConnector(
   input: PublishConnectorInput
 ): Promise<PublishConnectorResult> {
+  const simulationModeEnabled = process.env.SCHEDULER_SIMULATION_MODE === "true"
+
+  if (simulationModeEnabled) {
+    return { outcome: "success" }
+  }
+
   if (input.publishMode === "manual_copy") {
     if (input.postStatus === "posted") {
       return { outcome: "success" }

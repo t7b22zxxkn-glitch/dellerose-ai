@@ -136,6 +136,23 @@ function computeNextRetryAt(attemptCount: number): string | null {
   return retryAt.toISOString()
 }
 
+function resolveInitialNextRetryAt(scheduledFor: string | null | undefined): string | null {
+  if (!scheduledFor) {
+    return null
+  }
+
+  const parsed = new Date(scheduledFor)
+  if (Number.isNaN(parsed.getTime())) {
+    return null
+  }
+
+  if (parsed.getTime() <= Date.now()) {
+    return null
+  }
+
+  return parsed.toISOString()
+}
+
 function createPublishJobIdempotencyKey(input: {
   workflowId: string
   platform: Platform
@@ -381,7 +398,7 @@ export async function enqueuePublishJobAction(
         status: "queued",
         attempt_count: 0,
         max_attempts: PUBLISH_JOB_MAX_ATTEMPTS,
-        next_retry_at: null,
+        next_retry_at: resolveInitialNextRetryAt(input.scheduledFor),
         last_error: null,
         dead_lettered_at: null,
         published_at: null,

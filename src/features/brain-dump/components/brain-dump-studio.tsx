@@ -40,6 +40,9 @@ export function BrainDumpStudio() {
     transcript,
     brief,
     platformDrafts,
+    attachedMediaFiles,
+    isAnalyzingMedia,
+    mediaContextNote,
     isGeneratingDrafts,
     platformDraftErrorMessage,
     errorMessage,
@@ -48,6 +51,7 @@ export function BrainDumpStudio() {
     startRecording,
     stopRecording,
     generatePlatformDrafts,
+    setAttachedMediaFiles,
     reset,
   } = useBrainDumpRecorder()
 
@@ -103,6 +107,60 @@ export function BrainDumpStudio() {
               <AlertTitle>Fejl i Brain Dump</AlertTitle>
               <AlertDescription>{errorMessage}</AlertDescription>
             </Alert>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Media context (kamera/upload)</CardTitle>
+          <CardDescription>
+            Tag billeder via mobilkamera eller upload billeder/video. Indholdet
+            kobles på Brain Dump analysen.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <input
+            type="file"
+            accept="image/*,video/*"
+            multiple
+            capture="environment"
+            onChange={(event) => {
+              const fileList = event.target.files
+              if (!fileList) {
+                setAttachedMediaFiles([])
+                return
+              }
+              setAttachedMediaFiles(Array.from(fileList))
+            }}
+          />
+          <p className="text-muted-foreground text-xs">
+            Maks 4 filer. Understøttet: JPG/PNG/WEBP/GIF samt MP4/MOV/WEBM.
+          </p>
+
+          {attachedMediaFiles.length > 0 ? (
+            <div className="space-y-1 text-xs">
+              <p className="font-medium">Vedhæftede filer:</p>
+              <ul className="list-disc pl-5">
+                {attachedMediaFiles.map((file) => (
+                  <li key={`${file.name}-${file.size}`}>
+                    {file.name} · {(file.size / (1024 * 1024)).toFixed(1)} MB
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-xs">Ingen media vedhæftet endnu.</p>
+          )}
+
+          {isAnalyzingMedia ? (
+            <p className="text-xs text-muted-foreground">Analyserer media-kontekst…</p>
+          ) : null}
+
+          {mediaContextNote ? (
+            <div className="rounded-md border bg-muted/40 p-3 text-xs whitespace-pre-wrap">
+              {mediaContextNote}
+            </div>
           ) : null}
         </CardContent>
       </Card>
