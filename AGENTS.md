@@ -29,6 +29,10 @@ Set `ENABLE_DEV_USER_FALLBACK=true` and `DELLEROSE_DEV_USER_ID=<uuid>` in `.env.
 
 Copy `.env.example` to `.env.local` and fill in values. The Supabase config is validated with Zod (`z.string().url()` for URL, `z.string().min(1)` for anon key). If the env vars are missing or invalid, `isSupabaseConfigured()` returns `false` and the app degrades gracefully.
 
+### Dependency cache
+
+The VM snapshot includes a warm pnpm content-addressable store (`~/.local/share/pnpm/store/v10`) and a fully linked `node_modules`. The update script runs `pnpm install --frozen-lockfile`, which completes in under 1 second when the lockfile hasn't changed. `pnpm lint` and `pnpm build` are ready to run immediately after the update script -- no additional install step needed.
+
 ### Build scripts warning
 
 After `pnpm install`, pnpm may warn about ignored build scripts for `esbuild` and `msw`. These are configured in `pnpm-workspace.yaml` under `ignoredBuiltDependencies` and do not affect normal development.
