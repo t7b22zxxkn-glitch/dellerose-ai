@@ -5,7 +5,7 @@ import { AlertCircle, CheckCircle2, Save, SlidersHorizontal } from "lucide-react
 
 import { submitBrandProfileAction } from "@/features/onboarding/actions"
 import { onboardingInitialState } from "@/features/onboarding/types"
-import type { BrandProfile } from "@/lib/types/domain"
+import type { BrandProfile, PersistedBrandBlueprint } from "@/lib/types/domain"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -24,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea"
 
 type OnboardingFormProps = {
   initialProfile: BrandProfile | null
+  initialBlueprint: PersistedBrandBlueprint | null
   canSubmit: boolean
   notice: string | null
 }
@@ -72,6 +73,7 @@ function SliderField({
 
 export function OnboardingForm({
   initialProfile,
+  initialBlueprint,
   canSubmit,
   notice,
 }: OnboardingFormProps) {
@@ -117,6 +119,26 @@ export function OnboardingForm({
             <AlertDescription>{notice}</AlertDescription>
           </Alert>
         ) : null}
+
+        {initialBlueprint ? (
+          <Alert>
+            <CheckCircle2 className="h-4 w-4" />
+            <AlertTitle>Brand Blueprint fundet</AlertTitle>
+            <AlertDescription>
+              Status: {initialBlueprint.status}. Version: {initialBlueprint.version}. Strategisk
+              brandkontekst kan nu bruges i resten af systemet.
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Brand Blueprint anbefales</AlertTitle>
+            <AlertDescription>
+              Kør Brand Blueprint onboarding for at få niche, målgruppe og content pillars før
+              du producerer indhold.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {showFormMessage ? (
           <Alert variant={state.status === "error" ? "destructive" : "default"}>

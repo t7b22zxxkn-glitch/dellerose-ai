@@ -10,10 +10,19 @@ import {
   RefreshCcw,
 } from "lucide-react"
 
-import { regeneratePlatformDraftAction } from "@/features/agent-engine/actions"
+import {
+  regeneratePlatformDraftAction,
+  rescoreDraftQualityAction,
+} from "@/features/agent-engine/actions"
 import { upsertPostPlanAction } from "@/features/scheduler/actions"
 import { useWorkflowStore } from "@/features/workflow/store"
-import type { AgentOutput, ContentBrief, Platform } from "@/lib/types/domain"
+import { formatActionErrorMessage } from "@/lib/server-actions/contracts"
+import type {
+  AgentOutput,
+  ContentBrief,
+  DraftQualityReport,
+  Platform,
+} from "@/lib/types/domain"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -34,6 +43,8 @@ type DraftCardProps = {
   transcript: string
   brief: ContentBrief
   draft: AgentOutput
+  allDrafts: AgentOutput[]
+  qualityReport: DraftQualityReport | null
   persistDraft: (draft: AgentOutput) => Promise<{
     success: boolean
     message?: string
@@ -45,6 +56,102 @@ type DraftCardProps = {
     value: string
   ) => void
   onApproveAndPlan: (platform: Platform, scheduledFor: string | null) => void
+  onSetDraftQualityReport: (qualityReport: DraftQualityReport | null) => void
+}
+
+function QualityReviewPanel({
+  report,
+  onRescore,
+  isRescoring,
+}: {
+  report: DraftQualityReport | null
+  onRescore: () => void
+  isRescoring: boolean
+}) {
+  if (!report) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Quality review</CardTitle>
+          <CardDescription>
+            Ingen quality-report endnu. Generér nye platform-drafts for at se
+            supervisor angles, overlap scores og flags.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button type="button" variant="outline" onClick={onRescore} disabled={isRescoring}>
+            {isRescoring ? "Genberegner..." : "Genberegn quality score"}
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Quality review</CardTitle>
+        <CardDescription>
+          Supervisor version: {report.supervisorPromptVersion}. Max overlap:{" "}
+          {Math.round(report.maxSimilarityScore * 100)}%.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4 text-xs">
+        <div className="space-y-1">
+          <p className="font-semibold">Global direction</p>
+          <p className="text-muted-foreground">{report.globalDirection}</p>
+        </div>
+
+        <div className="space-y-1">
+          <p className="font-semibold">Platform angles</p>
+          <ul className="space-y-1">
+            {Object.entries(report.platformAngles).map(([platform, angle]) => (
+              <li key={platform} className="rounded-md border bg-muted/40 p-2">
+                <span className="font-medium capitalize">{platform}:</span> {angle}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="space-y-1">
+          <p className="font-semibold">
+            Similarity pairs (threshold {Math.round(report.similarityThreshold * 100)}%)
+          </p>
+          <ul className="space-y-1">
+            {report.similarityPairs.map((pair) => (
+              <li key={`${pair.leftPlatform}-${pair.rightPlatform}`} className="rounded-md border p-2">
+                <span className="capitalize">{pair.leftPlatform}</span> vs{" "}
+                <span className="capitalize">{pair.rightPlatform}</span>:{" "}
+                {Math.round(pair.similarityScore * 100)}%
+                {pair.exceedsThreshold ? " ⚠️" : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="space-y-1">
+          <p className="font-semibold">Flags</p>
+          {report.flags.length === 0 ? (
+            <p className="text-muted-foreground">Ingen quality flags fundet.</p>
+          ) : (
+            <ul className="space-y-1">
+              {report.flags.map((flag, index) => (
+                <li key={`${flag.platform}-${flag.code}-${index}`} className="rounded-md border p-2">
+                  <span className="font-medium capitalize">{flag.platform}</span> · {flag.code}
+                  <p className="text-muted-foreground">{flag.message}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div>
+          <Button type="button" variant="outline" onClick={onRescore} disabled={isRescoring}>
+            {isRescoring ? "Genberegner..." : "Genberegn quality score"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
 }
 
 function getPlatformLabel(platform: Platform): string {
@@ -72,14 +179,18 @@ function DraftPreviewCard({
   transcript,
   brief,
   draft,
+  allDrafts,
+  qualityReport,
   persistDraft,
   onReplaceDraft,
   onUpdateField,
   onApproveAndPlan,
+  onSetDraftQualityReport,
 }: DraftCardProps) {
   const [editingField, setEditingField] = useState<EditableField>(null)
   const [editingValue, setEditingValue] = useState("")
   const [scheduledDate, setScheduledDate] = useState("")
+  const [regenerateInstruction, setRegenerateInstruction] = useState("")
   const [cardErrorMessage, setCardErrorMessage] = useState<string | null>(null)
   const [isRegenerating, startRegenerate] = useTransition()
   const [isPersistingPlan, startPersistPlan] = useTransition()
@@ -118,6 +229,17 @@ function DraftPreviewCard({
       }
 
       onUpdateField(draft.platform, editingField, trimmed)
+      const nextDrafts = allDrafts.map((currentDraft) =>
+        currentDraft.platform === draft.platform ? nextDraft : currentDraft
+      )
+      const qualityResult = await rescoreDraftQualityAction({
+        brief,
+        outputs: nextDrafts,
+        previousQualityReport: qualityReport,
+      })
+      if (qualityResult.success) {
+        onSetDraftQualityReport(qualityResult.qualityReport)
+      }
       setEditingField(null)
       setCardErrorMessage(null)
     })
@@ -129,12 +251,16 @@ function DraftPreviewCard({
     setCardErrorMessage(null)
   }
 
-  const handleRegenerate = () => {
+  const handleRegenerate = (instruction?: string) => {
     startRegenerate(async () => {
-      const result = await regeneratePlatformDraftAction(draft.platform, brief)
+      const result = await regeneratePlatformDraftAction(
+        draft.platform,
+        brief,
+        instruction
+      )
 
       if (!result.success) {
-        setCardErrorMessage(result.message)
+        setCardErrorMessage(formatActionErrorMessage(result))
         return
       }
 
@@ -152,7 +278,21 @@ function DraftPreviewCard({
       }
 
       onReplaceDraft(regeneratedDraft)
+      const nextDrafts = allDrafts.map((currentDraft) =>
+        currentDraft.platform === draft.platform ? regeneratedDraft : currentDraft
+      )
+      const qualityResult = await rescoreDraftQualityAction({
+        brief,
+        outputs: nextDrafts,
+        previousQualityReport: qualityReport,
+      })
+      if (qualityResult.success) {
+        onSetDraftQualityReport(qualityResult.qualityReport)
+      }
       setCardErrorMessage(null)
+      if (instruction) {
+        setRegenerateInstruction("")
+      }
     })
   }
 
@@ -173,7 +313,7 @@ function DraftPreviewCard({
       })
 
       if (!result.success) {
-        setCardErrorMessage(result.message)
+        setCardErrorMessage(formatActionErrorMessage(result))
         return
       }
 
@@ -319,11 +459,33 @@ function DraftPreviewCard({
               <Button
                 type="button"
                 variant="outline"
-                onClick={handleRegenerate}
+                onClick={() => handleRegenerate()}
                 disabled={isRegenerating || isPersistingPlan || isFieldLocked}
               >
                 <RefreshCcw className="h-4 w-4" />
                 {isRegenerating ? "Regenererer..." : "Regenerate"}
+              </Button>
+            </div>
+
+            <div className="space-y-2">
+              <Textarea
+                value={regenerateInstruction}
+                onChange={(event) => setRegenerateInstruction(event.target.value)}
+                className="min-h-[84px]"
+                placeholder="Regenerate with instruction… fx: gør tonen mere autoritativ og tilføj stærkere CTA."
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleRegenerate(regenerateInstruction)}
+                disabled={
+                  isRegenerating ||
+                  isPersistingPlan ||
+                  isFieldLocked ||
+                  regenerateInstruction.trim().length < 3
+                }
+              >
+                Regenerate med instruction
               </Button>
             </div>
 
@@ -355,11 +517,33 @@ export function CreativeRoomWorkspace() {
   const transcript = useWorkflowStore((state) => state.transcript)
   const brief = useWorkflowStore((state) => state.brief)
   const drafts = useWorkflowStore((state) => state.drafts)
+  const draftQualityReport = useWorkflowStore((state) => state.draftQualityReport)
   const postPlans = useWorkflowStore((state) => state.postPlans)
   const chatLog = useWorkflowStore((state) => state.chatLog)
   const replaceDraft = useWorkflowStore((state) => state.replaceDraft)
   const updateDraftField = useWorkflowStore((state) => state.updateDraftField)
+  const setDraftQualityReport = useWorkflowStore((state) => state.setDraftQualityReport)
   const approveAndPlanDraft = useWorkflowStore((state) => state.approveAndPlanDraft)
+  const [isRescoringQuality, startRescore] = useTransition()
+
+  const rescoreQuality = () => {
+    startRescore(async () => {
+      if (!brief || drafts.length === 0) {
+        return
+      }
+
+      const result = await rescoreDraftQualityAction({
+        brief,
+        outputs: drafts,
+        previousQualityReport: draftQualityReport,
+      })
+      if (!result.success) {
+        return
+      }
+
+      setDraftQualityReport(result.qualityReport)
+    })
+  }
 
   const persistDraft = async (draft: AgentOutput) => {
     const plan = postPlans.find((item) => item.platform === draft.platform)
@@ -375,7 +559,7 @@ export function CreativeRoomWorkspace() {
     if (!result.success) {
       return {
         success: false as const,
-        message: result.message,
+        message: formatActionErrorMessage(result),
       }
     }
 
@@ -457,6 +641,12 @@ export function CreativeRoomWorkspace() {
           </CardContent>
         </Card>
 
+        <QualityReviewPanel
+          report={draftQualityReport}
+          onRescore={rescoreQuality}
+          isRescoring={isRescoringQuality}
+        />
+
         <div className="grid gap-4 md:grid-cols-2">
           {drafts.map((draft) => (
             <DraftPreviewCard
@@ -465,10 +655,13 @@ export function CreativeRoomWorkspace() {
               transcript={transcript}
               brief={brief}
               draft={draft}
+              allDrafts={drafts}
+              qualityReport={draftQualityReport}
               persistDraft={persistDraft}
               onReplaceDraft={replaceDraft}
               onUpdateField={updateDraftField}
               onApproveAndPlan={approveAndPlanDraft}
+              onSetDraftQualityReport={setDraftQualityReport}
             />
           ))}
         </div>

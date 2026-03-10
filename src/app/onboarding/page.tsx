@@ -1,5 +1,7 @@
 import { WandSparkles } from "lucide-react"
+import Link from "next/link"
 
+import { Button } from "@/components/ui/button"
 import { OnboardingForm } from "@/features/onboarding/components/onboarding-form"
 import { getOnboardingBootstrap } from "@/features/onboarding/service"
 import { requireAuthenticatedUser } from "@/lib/auth/guards"
@@ -17,13 +19,20 @@ export default async function OnboardingPage() {
         </div>
         <h1 className="text-3xl font-semibold tracking-tight">Onboarding</h1>
         <p className="text-muted-foreground">
-          Første step i workflowet er en Brand Profile. Denne bruges af Master
-          Agent og alle platform-agenter for konsistent output.
+          Onboarding består af Brand Blueprint (strategi) og Brand Profile
+          (operationelle præferencer). Begge bruges af Master Agent og
+          platform-agenter for konsistent output.
         </p>
+        <div>
+          <Button asChild variant="outline">
+            <Link href="/brand-blueprint">Start Brand Blueprint</Link>
+          </Button>
+        </div>
       </section>
 
       <OnboardingForm
         initialProfile={bootstrap.profile}
+        initialBlueprint={bootstrap.blueprint}
         canSubmit={bootstrap.canSubmit}
         notice={bootstrap.notice}
       />

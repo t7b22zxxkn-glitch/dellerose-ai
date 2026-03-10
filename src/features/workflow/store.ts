@@ -4,7 +4,13 @@ import { z } from "zod"
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
 
-import type { AgentOutput, ContentBrief, Platform, PostPlan } from "@/lib/types/domain"
+import type {
+  AgentOutput,
+  ContentBrief,
+  DraftQualityReport,
+  Platform,
+  PostPlan,
+} from "@/lib/types/domain"
 import type {
   WorkflowChatItem,
   WorkflowChatRole,
@@ -16,6 +22,7 @@ type WorkflowStoreState = {
   transcript: string
   brief: ContentBrief | null
   drafts: AgentOutput[]
+  draftQualityReport: DraftQualityReport | null
   postPlans: PostPlan[]
   chatLog: WorkflowChatItem[]
   hydrateFromPersistedSnapshot: (
@@ -23,7 +30,8 @@ type WorkflowStoreState = {
     options?: { force?: boolean }
   ) => void
   setBrainDumpResult: (transcript: string, brief: ContentBrief) => void
-  setDrafts: (drafts: AgentOutput[]) => void
+  setDrafts: (drafts: AgentOutput[], qualityReport?: DraftQualityReport | null) => void
+  setDraftQualityReport: (qualityReport: DraftQualityReport | null) => void
   replaceDraft: (nextDraft: AgentOutput) => void
   updateDraftField: (
     platform: Platform,
@@ -31,7 +39,12 @@ type WorkflowStoreState = {
     value: string
   ) => void
   approveAndPlanDraft: (platform: Platform, scheduledFor: string | null) => void
-  setPlanScheduled: (planId: string, scheduledFor: string) => void
+  setPlanScheduled: (
+    planId: string,
+    scheduledFor: string,
+    publishJob?: PostPlan["publishJob"]
+  ) => void
+  setPlanPublishJob: (planId: string, publishJob: PostPlan["publishJob"]) => void
   markPlanPosted: (planId: string) => void
   resetWorkflow: () => void
 }
@@ -63,6 +76,7 @@ const INITIAL_SNAPSHOT: WorkflowSnapshot = {
   transcript: "",
   brief: null,
   drafts: [],
+  draftQualityReport: null,
   postPlans: [],
   chatLog: [],
 }
@@ -104,6 +118,7 @@ function toPostPlan(draft: AgentOutput, scheduledFor: string | null): PostPlan {
     visualSuggestion: draft.visualSuggestion,
     status: scheduledFor ? "scheduled" : "pending",
     scheduledFor,
+    publishJob: null,
   }
 }
 
@@ -122,6 +137,17 @@ function upsertPlanByPlatform(
   return updated
 }
 
+function normalizePostPlans(plans: PostPlan[] | undefined): PostPlan[] {
+  if (!plans) {
+    return []
+  }
+
+  return plans.map((plan) => ({
+    ...plan,
+    publishJob: plan.publishJob ?? null,
+  }))
+}
+
 export const useWorkflowStore = create<WorkflowStoreState>()(
   persist(
     (set) => ({
@@ -137,6 +163,7 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
             transcript: snapshot.transcript,
             brief: snapshot.brief,
             drafts: snapshot.drafts,
+            draftQualityReport: snapshot.draftQualityReport,
             postPlans: snapshot.postPlans,
             chatLog: appendChatLog(
               snapshot.chatLog,
@@ -152,6 +179,7 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
           transcript,
           brief,
           drafts: [],
+          draftQualityReport: null,
           postPlans: [],
           chatLog: appendChatLog(
             appendChatLog(
@@ -164,15 +192,22 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
           ),
         }))
       },
-      setDrafts: (drafts) => {
+      setDrafts: (drafts, qualityReport = null) => {
         set((state) => ({
           workflowId: ensureValidWorkflowId(state.workflowId),
           drafts,
+          draftQualityReport: qualityReport,
           chatLog: appendChatLog(
             state.chatLog,
             "agent",
             "Multi-Agent Engine genererede platform-drafts til 5 platforme."
           ),
+        }))
+      },
+      setDraftQualityReport: (qualityReport) => {
+        set((state) => ({
+          workflowId: ensureValidWorkflowId(state.workflowId),
+          draftQualityReport: qualityReport,
         }))
       },
       replaceDraft: (nextDraft) => {
@@ -181,6 +216,7 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
           drafts: state.drafts.map((draft) =>
             draft.platform === nextDraft.platform ? nextDraft : draft
           ),
+          draftQualityReport: null,
           chatLog: appendChatLog(
             state.chatLog,
             "agent",
@@ -206,6 +242,7 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
             }
             return { ...draft, cta: normalizedValue }
           }),
+          draftQualityReport: null,
           chatLog: appendChatLog(
             state.chatLog,
             "system",
@@ -236,6 +273,7 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
             drafts: state.drafts.map((draft) =>
               draft.platform === platform ? nextDraft : draft
             ),
+            draftQualityReport: null,
             postPlans: nextPlans,
             chatLog: appendChatLog(
               state.chatLog,
@@ -247,7 +285,7 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
           }
         })
       },
-      setPlanScheduled: (planId, scheduledFor) => {
+      setPlanScheduled: (planId, scheduledFor, publishJob) => {
         set((state) => {
           const nextPlans: PostPlan[] = state.postPlans.map((plan): PostPlan => {
             if (plan.id !== planId) {
@@ -258,6 +296,7 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
               ...plan,
               status: "scheduled",
               scheduledFor,
+              publishJob: publishJob ?? plan.publishJob,
             }
           })
 
@@ -280,6 +319,19 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
           }
         })
       },
+      setPlanPublishJob: (planId, publishJob) => {
+        set((state) => ({
+          workflowId: ensureValidWorkflowId(state.workflowId),
+          postPlans: state.postPlans.map((plan) =>
+            plan.id === planId ? { ...plan, publishJob } : plan
+          ),
+          chatLog: appendChatLog(
+            state.chatLog,
+            "system",
+            "Publish job status blev opdateret."
+          ),
+        }))
+      },
       markPlanPosted: (planId) => {
         set((state) => {
           const nextPlans: PostPlan[] = state.postPlans.map((plan): PostPlan => {
@@ -287,7 +339,18 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
               return plan
             }
 
-            return { ...plan, status: "posted" }
+            return {
+              ...plan,
+              status: "posted",
+              publishJob: plan.publishJob
+                ? {
+                    ...plan.publishJob,
+                    status: "published",
+                    nextRetryAt: null,
+                    updatedAt: nowIso(),
+                  }
+                : plan.publishJob,
+            }
           })
 
           const affectedPlatform =
@@ -323,6 +386,7 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
         transcript: state.transcript,
         brief: state.brief,
         drafts: state.drafts,
+        draftQualityReport: state.draftQualityReport,
         postPlans: state.postPlans,
         chatLog: state.chatLog,
       }),
@@ -335,6 +399,8 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
         return {
           ...INITIAL_SNAPSHOT,
           ...state,
+          draftQualityReport: state.draftQualityReport ?? null,
+          postPlans: normalizePostPlans(state.postPlans),
           workflowId: ensureValidWorkflowId(state.workflowId),
         } as WorkflowStoreState
       },
@@ -349,6 +415,7 @@ export function getWorkflowSnapshot(): WorkflowSnapshot {
     transcript: state.transcript,
     brief: state.brief,
     drafts: state.drafts,
+    draftQualityReport: state.draftQualityReport,
     postPlans: state.postPlans,
     chatLog: state.chatLog,
   }

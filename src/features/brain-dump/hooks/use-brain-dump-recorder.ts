@@ -4,11 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { generatePlatformDraftsAction } from "@/features/agent-engine/actions"
 import { analyzeTranscriptAction } from "@/features/brain-dump/actions"
-import { transcribeAudioBlob } from "@/features/brain-dump/service"
+import { generateMediaContext, transcribeAudioBlob } from "@/features/brain-dump/service"
 import {
   getWorkflowSnapshot,
   useWorkflowStore,
 } from "@/features/workflow/store"
+import { formatActionErrorMessage } from "@/lib/server-actions/contracts"
 import type { AgentOutput, ContentBrief } from "@/lib/types/domain"
 
 export type BrainDumpStage =
@@ -26,8 +27,11 @@ type UseBrainDumpRecorderState = {
   brief: ContentBrief | null
   platformDrafts: AgentOutput[]
   isGeneratingDrafts: boolean
+  isAnalyzingMedia: boolean
   platformDraftErrorMessage: string | null
   errorMessage: string | null
+  mediaContextNote: string | null
+  attachedMediaFiles: File[]
   isRecording: boolean
   statusLabel: string
 }
@@ -36,6 +40,7 @@ type UseBrainDumpRecorderApi = {
   startRecording: () => Promise<void>
   stopRecording: () => void
   generatePlatformDrafts: () => Promise<void>
+  setAttachedMediaFiles: (files: File[]) => void
   reset: () => void
 }
 
@@ -81,6 +86,7 @@ export function useBrainDumpRecorder(): UseBrainDumpRecorderState &
   const recorderRef = useRef<MediaRecorder | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const chunksRef = useRef<Blob[]>([])
+  const attachedMediaFilesRef = useRef<File[]>([])
 
   const [stage, setStage] = useState<BrainDumpStage>(
     initialWorkflow.brief ? "ready" : "idle"
@@ -91,6 +97,9 @@ export function useBrainDumpRecorder(): UseBrainDumpRecorderState &
   const [platformDrafts, setPlatformDrafts] = useState<AgentOutput[]>(
     initialWorkflow.drafts
   )
+  const [attachedMediaFiles, setAttachedMediaFilesState] = useState<File[]>([])
+  const [mediaContextNote, setMediaContextNote] = useState<string | null>(null)
+  const [isAnalyzingMedia, setIsAnalyzingMedia] = useState(false)
   const [isGeneratingDrafts, setIsGeneratingDrafts] = useState(false)
   const [platformDraftErrorMessage, setPlatformDraftErrorMessage] = useState<
     string | null
@@ -134,20 +143,45 @@ export function useBrainDumpRecorder(): UseBrainDumpRecorderState &
 
     try {
       const nextTranscript = await transcribeAudioBlob(audioBlob)
-      setTranscript(nextTranscript)
+      let transcriptForAnalysis = nextTranscript
+
+      if (attachedMediaFilesRef.current.length > 0) {
+        setIsAnalyzingMedia(true)
+        try {
+          const mediaContext = await generateMediaContext(attachedMediaFilesRef.current)
+          if (mediaContext) {
+            setMediaContextNote(mediaContext)
+            transcriptForAnalysis = `${nextTranscript}\n\n[Visuel kontekst]\n${mediaContext}`
+          } else {
+            setMediaContextNote(null)
+          }
+        } catch {
+          // Media analysis should not block core transcript analysis.
+          setMediaContextNote(
+            "Media blev vedhæftet, men kunne ikke analyseres automatisk. Beskriv visuelt indhold i din voice-over."
+          )
+        } finally {
+          setIsAnalyzingMedia(false)
+        }
+      } else {
+        setMediaContextNote(null)
+      }
+
+      setTranscript(transcriptForAnalysis)
 
       setStage("analyzing")
-      const analysisResult = await analyzeTranscriptAction(nextTranscript)
+      const analysisResult = await analyzeTranscriptAction(transcriptForAnalysis)
 
       if (!analysisResult.success) {
-        throw new Error(analysisResult.message)
+        throw new Error(formatActionErrorMessage(analysisResult))
       }
 
       const nextBrief = analysisResult.brief
       setBrief(nextBrief)
       setStage("ready")
-      setBrainDumpResult(nextTranscript, nextBrief)
+      setBrainDumpResult(transcriptForAnalysis, nextBrief)
     } catch (error: unknown) {
+      setIsAnalyzingMedia(false)
       setStage("error")
       if (error instanceof Error) {
         setErrorMessage(error.message)
@@ -185,6 +219,7 @@ export function useBrainDumpRecorder(): UseBrainDumpRecorderState &
       setErrorMessage(null)
       setTranscript("")
       setBrief(null)
+      setMediaContextNote(null)
       setPlatformDrafts([])
       setPlatformDraftErrorMessage(null)
       resetWorkflow()
@@ -240,6 +275,9 @@ export function useBrainDumpRecorder(): UseBrainDumpRecorderState &
     setErrorMessage(null)
     setTranscript("")
     setBrief(null)
+    setMediaContextNote(null)
+    setAttachedMediaFilesState([])
+    attachedMediaFilesRef.current = []
     setPlatformDrafts([])
     setPlatformDraftErrorMessage(null)
     resetWorkflow()
@@ -263,12 +301,12 @@ export function useBrainDumpRecorder(): UseBrainDumpRecorderState &
 
       if (!result.success) {
         setPlatformDrafts([])
-        setPlatformDraftErrorMessage(result.message)
+        setPlatformDraftErrorMessage(formatActionErrorMessage(result))
         return
       }
 
       setPlatformDrafts(result.outputs)
-      setWorkflowDrafts(result.outputs)
+      setWorkflowDrafts(result.outputs, result.qualityReport)
     } catch {
       setPlatformDrafts([])
       setPlatformDraftErrorMessage(
@@ -278,6 +316,12 @@ export function useBrainDumpRecorder(): UseBrainDumpRecorderState &
       setIsGeneratingDrafts(false)
     }
   }, [brief, setWorkflowDrafts, stage])
+
+  const setAttachedMediaFiles = useCallback((files: File[]) => {
+    const normalized = files.slice(0, 4)
+    attachedMediaFilesRef.current = normalized
+    setAttachedMediaFilesState(normalized)
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -296,14 +340,18 @@ export function useBrainDumpRecorder(): UseBrainDumpRecorderState &
     transcript,
     brief,
     platformDrafts,
+    isAnalyzingMedia,
     isGeneratingDrafts,
     platformDraftErrorMessage,
     errorMessage,
+    mediaContextNote,
+    attachedMediaFiles,
     isRecording,
     statusLabel,
     startRecording,
     stopRecording,
     generatePlatformDrafts,
+    setAttachedMediaFiles,
     reset,
   }
 }

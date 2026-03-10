@@ -52,6 +52,7 @@ pnpm dev
 ```
 
 Open `http://localhost:3000/onboarding` to run Brand Profile onboarding.
+Open `http://localhost:3000/brand-blueprint` to run Brand Blueprint onboarding.
 Open `http://localhost:3000/brain-dump` to run voice Brain Dump.
 Open `http://localhost:3000/creative-room` for review and editing.
 Open `http://localhost:3000/scheduler` for scheduling flow.
@@ -93,6 +94,7 @@ If you use token-based auth in CI, set `SUPABASE_ACCESS_TOKEN` and
 
 ## Current MVP modules
 
+- ✅ Brand Blueprint onboarding (3-question voice interview + persistent strategy layer)
 - ✅ BrandProfile onboarding flow (implemented)
 - ✅ Brain Dump (voice + whisper + Master Agent brief)
 - ✅ Master Agent via Server Action (typed ContentBrief)
@@ -107,3 +109,10 @@ If you use token-based auth in CI, set `SUPABASE_ACCESS_TOKEN` and
 ## Architecture
 
 See `docs/architecture.md` for folder structure and module boundaries.
+Brand Blueprint module structure: `docs/brand-blueprint-architecture.md`.
+
+## Acceptance checklists
+
+- Scheduler automation: `docs/acceptance/scheduler-automation.md`
+- Content quality supervision: `docs/acceptance/content-quality-supervision.md`
+- Brand Blueprint onboarding: `docs/acceptance/brand-blueprint-onboarding.md`

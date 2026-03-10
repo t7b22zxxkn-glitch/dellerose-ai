@@ -2,6 +2,8 @@ import { CalendarDays } from "lucide-react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { SchedulerList } from "@/features/scheduler/components/scheduler-list"
+import { SchedulerOpsPanel } from "@/features/scheduler/components/scheduler-ops-panel"
+import { getSchedulerOpsSnapshot } from "@/features/scheduler/queries"
 import { WorkflowHydrator } from "@/features/workflow/components/workflow-hydrator"
 import { WorkflowLibrary } from "@/features/workflow/components/workflow-library"
 import {
@@ -35,6 +37,7 @@ export default async function SchedulerPage({ searchParams }: SchedulerPageProps
       }
 
   const forceHydrate = Boolean(requestedWorkflowId && selectedWorkflowId)
+  const schedulerOps = await getSchedulerOpsSnapshot(selectedWorkflowId)
 
   return (
     <main className="min-h-screen bg-muted/30 px-4 py-10">
@@ -71,6 +74,10 @@ export default async function SchedulerPage({ searchParams }: SchedulerPageProps
           selectedWorkflowId={selectedWorkflowId}
           basePath="/scheduler"
         />
+      </section>
+
+      <section className="mx-auto mb-6 max-w-5xl">
+        <SchedulerOpsPanel snapshot={schedulerOps.snapshot} notice={schedulerOps.notice} />
       </section>
 
       <div className="mx-auto max-w-5xl">

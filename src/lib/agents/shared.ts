@@ -4,13 +4,18 @@ import { generateObject } from "ai"
 import { z, type ZodIssue } from "zod"
 
 import { createOpenAIProvider } from "@/lib/ai/provider"
+import { buildBrandBlueprintPromptContext } from "@/lib/brand-blueprint/context"
 import { agentOutputSchema } from "@/lib/schemas/domain"
 import type {
   AgentOutput,
+  BrandBlueprint,
   BrandProfile,
   ContentBrief,
   Platform,
 } from "@/lib/types/domain"
+import type { SupervisorGuidance } from "@/lib/agents/supervisor"
+
+const PLATFORM_AGENT_PROMPT_VERSION = "platform-agent-v1.1.0"
 
 const rawAgentModelSchema = z.object({
   platform: z.string().optional(),
@@ -35,6 +40,9 @@ type PlatformRules = {
 type PlatformAgentInput = {
   brief: ContentBrief
   brandProfile: BrandProfile
+  brandBlueprint?: BrandBlueprint
+  supervisorGuidance?: SupervisorGuidance
+  regenerationInstruction?: string
 }
 
 class AgentOutputValidationError extends Error {
@@ -88,9 +96,31 @@ function getConstrainedOutputSchema(rules: PlatformRules) {
 }
 
 function buildAgentPrompt(input: PlatformAgentInput, rules: PlatformRules): string {
+  const supervisorSection = input.supervisorGuidance
+    ? `
+Creative Supervisor guidance (version: ${input.supervisorGuidance.promptVersion}):
+- Global direction: ${input.supervisorGuidance.globalDirection}
+- Platform angle (${rules.platform}): ${input.supervisorGuidance.platformAngles[rules.platform]}
+`.trim()
+    : "Creative Supervisor guidance: ikke tilgængelig."
+  const regenerationInstructionSection =
+    input.regenerationInstruction && input.regenerationInstruction.trim().length > 0
+      ? `
+Regenerate instruction fra bruger:
+${input.regenerationInstruction.trim()}
+`
+      : ""
+  const brandBlueprintSection = input.brandBlueprint
+    ? `
+Brand Blueprint (strategisk identitet):
+${buildBrandBlueprintPromptContext(input.brandBlueprint)}
+`
+    : "Brand Blueprint: ikke sat endnu."
+
   return `
 Du er en specialiseret ${rules.platform}-agent i DelleRose.ai.
 Du må kun omstrukturere inputtet, ikke opfinde fakta.
+Prompt version: ${PLATFORM_AGENT_PROMPT_VERSION}
 
 Platform regler:
 ${rules.platformGuidance}
@@ -100,6 +130,11 @@ ${rules.platformGuidance}
 - Hashtags max: ${rules.maxHashtags}
 ${rules.totalMaxChars ? `- Total (hook+body+cta) max: ${rules.totalMaxChars}` : ""}
 - Output status SKAL være "draft"
+- Hook/body/cta skal være platform-specifik og ikke en kopi fra andre platforme.
+
+${supervisorSection}
+${regenerationInstructionSection}
+${brandBlueprintSection}
 
 BrandProfile:
 ${JSON.stringify(input.brandProfile, null, 2)}

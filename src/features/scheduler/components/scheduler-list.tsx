@@ -4,8 +4,12 @@ import Link from "next/link"
 import { useMemo, useState } from "react"
 import { CalendarDays, CheckCircle2, ClipboardCopy, Clock3 } from "lucide-react"
 
-import { updatePersistedPostPlanStatusAction } from "@/features/scheduler/actions"
+import {
+  requeuePublishJobAction,
+  updatePersistedPostPlanStatusAction,
+} from "@/features/scheduler/actions"
 import { useWorkflowStore } from "@/features/workflow/store"
+import { formatActionErrorMessage } from "@/lib/server-actions/contracts"
 import type { PostPlan } from "@/lib/types/domain"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -62,6 +66,24 @@ function getStatusLabel(status: PostPlan["status"]): string {
   return "posted"
 }
 
+function getPublishJobStatusClassName(
+  status: NonNullable<PostPlan["publishJob"]>["status"]
+): string {
+  if (status === "queued") {
+    return "bg-slate-100 text-slate-900 border-slate-200"
+  }
+  if (status === "processing") {
+    return "bg-purple-100 text-purple-900 border-purple-200"
+  }
+  if (status === "retrying") {
+    return "bg-amber-100 text-amber-900 border-amber-200"
+  }
+  if (status === "failed") {
+    return "bg-rose-100 text-rose-900 border-rose-200"
+  }
+  return "bg-emerald-100 text-emerald-900 border-emerald-200"
+}
+
 function sortPlansByDate(plans: PostPlan[]): PostPlan[] {
   return [...plans].sort((left, right) => {
     const leftTime = left.scheduledFor ? new Date(left.scheduledFor).getTime() : Infinity
@@ -83,6 +105,7 @@ export function SchedulerList() {
   const workflowId = useWorkflowStore((state) => state.workflowId)
   const plans = useWorkflowStore((state) => state.postPlans)
   const setPlanScheduled = useWorkflowStore((state) => state.setPlanScheduled)
+  const setPlanPublishJob = useWorkflowStore((state) => state.setPlanPublishJob)
   const markPlanPosted = useWorkflowStore((state) => state.markPlanPosted)
   const [draftDateByPlanId, setDraftDateByPlanId] = useState<Record<string, string>>({})
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null)
@@ -147,6 +170,29 @@ export function SchedulerList() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 text-sm">
+              {plan.publishJob ? (
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span
+                    className={`rounded-md border px-2 py-1 font-medium ${getPublishJobStatusClassName(plan.publishJob.status)}`}
+                  >
+                    job: {plan.publishJob.status}
+                  </span>
+                  <span className="text-muted-foreground">
+                    attempts: {plan.publishJob.attemptCount}
+                  </span>
+                  {plan.publishJob.nextRetryAt ? (
+                    <span className="text-muted-foreground">
+                      next retry: {formatDateTime(plan.publishJob.nextRetryAt)}
+                    </span>
+                  ) : null}
+                  {plan.publishJob.lastError ? (
+                    <span className="text-muted-foreground">
+                      error: {plan.publishJob.lastError}
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+
               <p className="font-medium">{plan.hook}</p>
               <p>{plan.body}</p>
               <p>{plan.cta}</p>
@@ -208,11 +254,11 @@ export function SchedulerList() {
                         })
 
                         if (!result.success) {
-                          setFeedbackMessage(result.message)
+                          setFeedbackMessage(formatActionErrorMessage(result))
                           return
                         }
 
-                        setPlanScheduled(plan.id, scheduledFor)
+                        setPlanScheduled(plan.id, scheduledFor, result.publishJob ?? null)
                         setFeedbackMessage(`${plan.platform} blev sat til scheduled.`)
                       }}
                     >
@@ -230,7 +276,7 @@ export function SchedulerList() {
                         })
 
                         if (!result.success) {
-                          setFeedbackMessage(result.message)
+                          setFeedbackMessage(formatActionErrorMessage(result))
                           return
                         }
 
@@ -242,6 +288,31 @@ export function SchedulerList() {
                       Markér posted
                     </Button>
                   )}
+
+                  {plan.publishJob?.status === "failed" ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={async () => {
+                        const result = await requeuePublishJobAction({
+                          workflowId,
+                          platform: plan.platform,
+                        })
+
+                        if (!result.success) {
+                          setFeedbackMessage(formatActionErrorMessage(result))
+                          return
+                        }
+
+                        setPlanPublishJob(plan.id, result.publishJob)
+                        setFeedbackMessage(
+                          `${plan.platform} publish job blev flyttet tilbage til queue.`
+                        )
+                      }}
+                    >
+                      Prøv igen i kø
+                    </Button>
+                  ) : null}
                 </div>
               ) : null}
             </CardContent>
