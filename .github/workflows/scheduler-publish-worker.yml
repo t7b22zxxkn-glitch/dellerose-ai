@@ -1,0 +1,78 @@
+name: Scheduler Publish Worker
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Run worker in dry run mode"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+      limit:
+        description: "Max jobs to process"
+        required: false
+        default: "25"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scheduler-publish-worker
+  cancel-in-progress: false
+
+jobs:
+  trigger-worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger publish worker endpoint
+        env:
+          WORKER_BASE_URL: ${{ secrets.SCHEDULER_WORKER_BASE_URL }}
+          WORKER_KEY: ${{ secrets.SCHEDULER_WORKER_KEY }}
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
+          INPUT_LIMIT: ${{ github.event.inputs.limit }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${WORKER_BASE_URL}" ]; then
+            echo "Missing required secret: SCHEDULER_WORKER_BASE_URL"
+            exit 1
+          fi
+
+          if [ -z "${WORKER_KEY}" ]; then
+            echo "Missing required secret: SCHEDULER_WORKER_KEY"
+            exit 1
+          fi
+
+          dry_run="false"
+          limit="25"
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ -n "${INPUT_DRY_RUN:-}" ]; then
+              dry_run="${INPUT_DRY_RUN}"
+            fi
+            if [ -n "${INPUT_LIMIT:-}" ]; then
+              limit="${INPUT_LIMIT}"
+            fi
+          fi
+
+          request_url="${WORKER_BASE_URL%/}/api/scheduler/publish-worker?limit=${limit}&dryRun=${dry_run}"
+          echo "Calling publish worker endpoint..."
+          echo "dryRun=${dry_run}, limit=${limit}"
+
+          response="$(
+            curl --silent --show-error --fail-with-body \
+              --request POST \
+              --header "x-worker-key: ${WORKER_KEY}" \
+              --header "content-type: application/json" \
+              "${request_url}"
+          )"
+
+          echo "Worker response:"
+          echo "${response}"

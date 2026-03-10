@@ -58,6 +58,15 @@ Note:
 - Hvis dit Vercel-plan ikke understøtter Cron Jobs, behold `vercel.json` uden `crons`
   og trig endpointet via ekstern scheduler (fx GitHub Action, UptimeRobot eller cron-job på server).
 
+GitHub Actions scheduler (recommended fallback when Vercel Cron is unavailable):
+
+1. Workflow file is included at `.github/workflows/scheduler-publish-worker.yml`.
+2. Add repository secrets in GitHub:
+   - `SCHEDULER_WORKER_BASE_URL` = `https://<your-vercel-domain>`
+   - `SCHEDULER_WORKER_KEY` = same value as your Vercel `SCHEDULER_WORKER_KEY` env var
+3. The workflow runs every 5 minutes and can be triggered manually from the Actions tab.
+4. For pre-live tuning, keep Vercel `SCHEDULER_SIMULATION_MODE=true`.
+
 Auth options:
 
 - Header `Authorization: Bearer <CRON_SECRET>`
