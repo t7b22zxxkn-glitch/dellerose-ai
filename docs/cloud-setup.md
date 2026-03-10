@@ -67,6 +67,7 @@ After linking:
 3. Verify:
    - `/login` can sign in/sign up users
    - `/onboarding` can save profile to Supabase
+   - `/brand-blueprint` can complete 3-step voice onboarding and persist blueprint
    - `/brain-dump` can transcribe/analyze
    - `/creative-room` can approve/plan
    - `/scheduler` can update status and persist to Supabase

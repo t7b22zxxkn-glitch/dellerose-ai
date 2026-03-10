@@ -3,7 +3,8 @@ import "server-only"
 import { generateObject } from "ai"
 
 import { contentBriefSchema } from "@/lib/schemas/domain"
-import type { ContentBrief } from "@/lib/types/domain"
+import type { BrandBlueprint, ContentBrief } from "@/lib/types/domain"
+import { buildBrandBlueprintPromptContext } from "@/lib/brand-blueprint/context"
 
 import { createOpenAIProvider } from "@/lib/ai/provider"
 
@@ -35,7 +36,10 @@ function buildMockBriefFromTranscript(transcript: string): ContentBrief {
 }
 
 export async function generateContentBriefFromTranscript(
-  transcript: string
+  transcript: string,
+  options?: {
+    brandBlueprint?: BrandBlueprint | null
+  }
 ): Promise<ContentBrief> {
   const cleanTranscript = transcript.trim()
 
@@ -57,6 +61,9 @@ export async function generateContentBriefFromTranscript(
     prompt: `
 Konverter nedenstående rå transcript til ContentBrief.
 Undlad antagelser ud over transcriptet.
+
+Brand Blueprint kontekst (kan være tom):
+${buildBrandBlueprintPromptContext(options?.brandBlueprint)}
 
 Transcript:
 ${cleanTranscript}

@@ -3,6 +3,7 @@
 import type { ContentBrief } from "@/lib/types/domain"
 
 import { analyzeRequestSchema } from "@/features/brain-dump/schema"
+import { getOnboardingBootstrap } from "@/features/onboarding/service"
 import { generateContentBriefFromTranscript } from "@/lib/agents/master"
 import {
   createRequestId,
@@ -94,7 +95,10 @@ export async function analyzeTranscriptAction(
       })
     }
 
-    const brief = await generateContentBriefFromTranscript(input.data.transcript)
+    const onboarding = await getOnboardingBootstrap()
+    const brief = await generateContentBriefFromTranscript(input.data.transcript, {
+      brandBlueprint: onboarding.blueprint?.blueprint ?? null,
+    })
 
     logActionInfo({
       requestId,

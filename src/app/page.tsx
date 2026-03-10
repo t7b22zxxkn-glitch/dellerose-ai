@@ -28,6 +28,12 @@ export default function Home() {
             </Link>
           </Button>
           <Button asChild size="lg" variant="outline">
+            <Link href="/brand-blueprint">
+              Brand Blueprint
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
+          <Button asChild size="lg" variant="outline">
             <Link href="/brain-dump">
               Åbn Brain Dump
               <ArrowRight className="h-4 w-4" />

@@ -32,6 +32,41 @@ export type BrandProfile = {
   voiceSample?: string
 }
 
+export type BrandBlueprintPillar = {
+  title: string
+  description: string
+}
+
+export type BrandBlueprint = {
+  niche: string
+  audience: string
+  brandTone: string
+  personalityTraits: string[]
+  contentPillars: BrandBlueprintPillar[]
+  elevatorPitch: string
+  bioShort: string
+}
+
+export type BrandBlueprintStatus = "draft" | "approved"
+
+export type PersistedBrandBlueprint = {
+  id: string
+  userId: string
+  onboardingPath:
+    | "build_personal_brand"
+    | "find_what_to_be_known_for"
+    | "find_my_niche"
+  version: number
+  status: BrandBlueprintStatus
+  blueprint: BrandBlueprint
+  interviewMode: "brand_architect_mode"
+  interviewAnswers: string[]
+  interviewTranscript: string
+  approvedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export type ContentBrief = {
   coreMessage: string
   intent: Intent

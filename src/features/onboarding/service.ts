@@ -7,12 +7,15 @@ import {
 import { resolveCurrentUserId } from "@/lib/supabase/auth"
 import { isSupabaseConfigured } from "@/lib/supabase/config"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import type { BrandProfile } from "@/lib/types/domain"
+import type { BrandProfile, PersistedBrandBlueprint } from "@/lib/types/domain"
+
+import { getActiveBrandBlueprintForCurrentUser } from "@/features/brand-blueprint/service"
 
 import type { OnboardingFormInput } from "./schema"
 
 export type OnboardingBootstrap = {
   profile: BrandProfile | null
+  blueprint: PersistedBrandBlueprint | null
   canSubmit: boolean
   notice: string | null
 }
@@ -31,6 +34,7 @@ export async function getOnboardingBootstrap(): Promise<OnboardingBootstrap> {
   if (!isSupabaseConfigured()) {
     return {
       profile: null,
+      blueprint: null,
       canSubmit: false,
       notice:
         "Supabase mangler konfiguration. Tilføj NEXT_PUBLIC_SUPABASE_URL og NEXT_PUBLIC_SUPABASE_ANON_KEY.",
@@ -44,6 +48,7 @@ export async function getOnboardingBootstrap(): Promise<OnboardingBootstrap> {
     if (!userId) {
       return {
         profile: null,
+        blueprint: null,
         canSubmit: false,
         notice:
           "Du skal være logget ind i Supabase Auth for at gemme en brand profile.",
@@ -59,6 +64,7 @@ export async function getOnboardingBootstrap(): Promise<OnboardingBootstrap> {
     if (error) {
       return {
         profile: null,
+        blueprint: await getActiveBrandBlueprintForCurrentUser(),
         canSubmit: true,
         notice:
           "Kunne ikke hente eksisterende brand profile endnu. Du kan stadig udfylde og gemme en ny.",
@@ -68,6 +74,7 @@ export async function getOnboardingBootstrap(): Promise<OnboardingBootstrap> {
     if (!data) {
       return {
         profile: null,
+        blueprint: await getActiveBrandBlueprintForCurrentUser(),
         canSubmit: true,
         notice: null,
       }
@@ -78,6 +85,7 @@ export async function getOnboardingBootstrap(): Promise<OnboardingBootstrap> {
     if (!parsedRow.success) {
       return {
         profile: null,
+        blueprint: await getActiveBrandBlueprintForCurrentUser(),
         canSubmit: true,
         notice:
           "Eksisterende profile-data kunne ikke valideres. Gem profilen igen for at normalisere data.",
@@ -86,12 +94,14 @@ export async function getOnboardingBootstrap(): Promise<OnboardingBootstrap> {
 
     return {
       profile: mapProfileRowToBrandProfile(parsedRow.data),
+      blueprint: await getActiveBrandBlueprintForCurrentUser(),
       canSubmit: true,
       notice: null,
     }
   } catch {
     return {
       profile: null,
+      blueprint: null,
       canSubmit: false,
       notice: "Der opstod en fejl under initialisering af onboarding.",
     }

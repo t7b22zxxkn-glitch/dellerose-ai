@@ -4,9 +4,11 @@ import { generateObject } from "ai"
 import { z, type ZodIssue } from "zod"
 
 import { createOpenAIProvider } from "@/lib/ai/provider"
+import { buildBrandBlueprintPromptContext } from "@/lib/brand-blueprint/context"
 import { agentOutputSchema } from "@/lib/schemas/domain"
 import type {
   AgentOutput,
+  BrandBlueprint,
   BrandProfile,
   ContentBrief,
   Platform,
@@ -38,6 +40,7 @@ type PlatformRules = {
 type PlatformAgentInput = {
   brief: ContentBrief
   brandProfile: BrandProfile
+  brandBlueprint?: BrandBlueprint
   supervisorGuidance?: SupervisorGuidance
   regenerationInstruction?: string
 }
@@ -107,6 +110,12 @@ Regenerate instruction fra bruger:
 ${input.regenerationInstruction.trim()}
 `
       : ""
+  const brandBlueprintSection = input.brandBlueprint
+    ? `
+Brand Blueprint (strategisk identitet):
+${buildBrandBlueprintPromptContext(input.brandBlueprint)}
+`
+    : "Brand Blueprint: ikke sat endnu."
 
   return `
 Du er en specialiseret ${rules.platform}-agent i DelleRose.ai.
@@ -125,6 +134,7 @@ ${rules.totalMaxChars ? `- Total (hook+body+cta) max: ${rules.totalMaxChars}` : 
 
 ${supervisorSection}
 ${regenerationInstructionSection}
+${brandBlueprintSection}
 
 BrandProfile:
 ${JSON.stringify(input.brandProfile, null, 2)}

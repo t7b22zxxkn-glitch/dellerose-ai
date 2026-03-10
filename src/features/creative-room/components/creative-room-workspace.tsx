@@ -10,7 +10,10 @@ import {
   RefreshCcw,
 } from "lucide-react"
 
-import { regeneratePlatformDraftAction } from "@/features/agent-engine/actions"
+import {
+  regeneratePlatformDraftAction,
+  rescoreDraftQualityAction,
+} from "@/features/agent-engine/actions"
 import { upsertPostPlanAction } from "@/features/scheduler/actions"
 import { useWorkflowStore } from "@/features/workflow/store"
 import { formatActionErrorMessage } from "@/lib/server-actions/contracts"
@@ -40,6 +43,8 @@ type DraftCardProps = {
   transcript: string
   brief: ContentBrief
   draft: AgentOutput
+  allDrafts: AgentOutput[]
+  qualityReport: DraftQualityReport | null
   persistDraft: (draft: AgentOutput) => Promise<{
     success: boolean
     message?: string
@@ -51,9 +56,18 @@ type DraftCardProps = {
     value: string
   ) => void
   onApproveAndPlan: (platform: Platform, scheduledFor: string | null) => void
+  onSetDraftQualityReport: (qualityReport: DraftQualityReport | null) => void
 }
 
-function QualityReviewPanel({ report }: { report: DraftQualityReport | null }) {
+function QualityReviewPanel({
+  report,
+  onRescore,
+  isRescoring,
+}: {
+  report: DraftQualityReport | null
+  onRescore: () => void
+  isRescoring: boolean
+}) {
   if (!report) {
     return (
       <Card>
@@ -64,6 +78,11 @@ function QualityReviewPanel({ report }: { report: DraftQualityReport | null }) {
             supervisor angles, overlap scores og flags.
           </CardDescription>
         </CardHeader>
+        <CardContent>
+          <Button type="button" variant="outline" onClick={onRescore} disabled={isRescoring}>
+            {isRescoring ? "Genberegner..." : "Genberegn quality score"}
+          </Button>
+        </CardContent>
       </Card>
     )
   }
@@ -125,6 +144,11 @@ function QualityReviewPanel({ report }: { report: DraftQualityReport | null }) {
             </ul>
           )}
         </div>
+        <div>
+          <Button type="button" variant="outline" onClick={onRescore} disabled={isRescoring}>
+            {isRescoring ? "Genberegner..." : "Genberegn quality score"}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   )
@@ -155,10 +179,13 @@ function DraftPreviewCard({
   transcript,
   brief,
   draft,
+  allDrafts,
+  qualityReport,
   persistDraft,
   onReplaceDraft,
   onUpdateField,
   onApproveAndPlan,
+  onSetDraftQualityReport,
 }: DraftCardProps) {
   const [editingField, setEditingField] = useState<EditableField>(null)
   const [editingValue, setEditingValue] = useState("")
@@ -202,6 +229,17 @@ function DraftPreviewCard({
       }
 
       onUpdateField(draft.platform, editingField, trimmed)
+      const nextDrafts = allDrafts.map((currentDraft) =>
+        currentDraft.platform === draft.platform ? nextDraft : currentDraft
+      )
+      const qualityResult = await rescoreDraftQualityAction({
+        brief,
+        outputs: nextDrafts,
+        previousQualityReport: qualityReport,
+      })
+      if (qualityResult.success) {
+        onSetDraftQualityReport(qualityResult.qualityReport)
+      }
       setEditingField(null)
       setCardErrorMessage(null)
     })
@@ -240,6 +278,17 @@ function DraftPreviewCard({
       }
 
       onReplaceDraft(regeneratedDraft)
+      const nextDrafts = allDrafts.map((currentDraft) =>
+        currentDraft.platform === draft.platform ? regeneratedDraft : currentDraft
+      )
+      const qualityResult = await rescoreDraftQualityAction({
+        brief,
+        outputs: nextDrafts,
+        previousQualityReport: qualityReport,
+      })
+      if (qualityResult.success) {
+        onSetDraftQualityReport(qualityResult.qualityReport)
+      }
       setCardErrorMessage(null)
       if (instruction) {
         setRegenerateInstruction("")
@@ -473,7 +522,28 @@ export function CreativeRoomWorkspace() {
   const chatLog = useWorkflowStore((state) => state.chatLog)
   const replaceDraft = useWorkflowStore((state) => state.replaceDraft)
   const updateDraftField = useWorkflowStore((state) => state.updateDraftField)
+  const setDraftQualityReport = useWorkflowStore((state) => state.setDraftQualityReport)
   const approveAndPlanDraft = useWorkflowStore((state) => state.approveAndPlanDraft)
+  const [isRescoringQuality, startRescore] = useTransition()
+
+  const rescoreQuality = () => {
+    startRescore(async () => {
+      if (!brief || drafts.length === 0) {
+        return
+      }
+
+      const result = await rescoreDraftQualityAction({
+        brief,
+        outputs: drafts,
+        previousQualityReport: draftQualityReport,
+      })
+      if (!result.success) {
+        return
+      }
+
+      setDraftQualityReport(result.qualityReport)
+    })
+  }
 
   const persistDraft = async (draft: AgentOutput) => {
     const plan = postPlans.find((item) => item.platform === draft.platform)
@@ -571,7 +641,11 @@ export function CreativeRoomWorkspace() {
           </CardContent>
         </Card>
 
-        <QualityReviewPanel report={draftQualityReport} />
+        <QualityReviewPanel
+          report={draftQualityReport}
+          onRescore={rescoreQuality}
+          isRescoring={isRescoringQuality}
+        />
 
         <div className="grid gap-4 md:grid-cols-2">
           {drafts.map((draft) => (
@@ -581,10 +655,13 @@ export function CreativeRoomWorkspace() {
               transcript={transcript}
               brief={brief}
               draft={draft}
+              allDrafts={drafts}
+              qualityReport={draftQualityReport}
               persistDraft={persistDraft}
               onReplaceDraft={replaceDraft}
               onUpdateField={updateDraftField}
               onApproveAndPlan={approveAndPlanDraft}
+              onSetDraftQualityReport={setDraftQualityReport}
             />
           ))}
         </div>

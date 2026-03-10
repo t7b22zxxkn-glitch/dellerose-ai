@@ -20,7 +20,7 @@ const supervisorSchema = z.object({
 })
 
 export type SupervisorGuidance = z.infer<typeof supervisorSchema> & {
-  promptVersion: typeof SUPERVISOR_PROMPT_VERSION
+  promptVersion: string
 }
 
 function buildFallbackPlatformAngle(platform: Platform, brief: ContentBrief): string {

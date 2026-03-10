@@ -44,6 +44,17 @@ exception
 end
 $$;
 
+do $$
+begin
+  create type public.brand_blueprint_status as enum (
+    'draft',
+    'approved'
+  );
+exception
+  when duplicate_object then null;
+end
+$$;
+
 create table if not exists public.profiles (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null unique references auth.users(id) on delete cascade,
@@ -60,6 +71,66 @@ create table if not exists public.profiles (
     or voice_sample ~* '^https?://'
   )
 );
+
+create table if not exists public.brand_blueprints (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null unique references auth.users(id) on delete cascade,
+  onboarding_path text not null default 'build_personal_brand' check (
+    onboarding_path in ('build_personal_brand', 'find_what_to_be_known_for', 'find_my_niche')
+  ),
+  version integer not null default 1 check (version >= 1),
+  status public.brand_blueprint_status not null default 'draft',
+  niche text not null,
+  audience text not null,
+  brand_tone text not null,
+  personality_traits text[] not null default '{}',
+  content_pillars jsonb not null,
+  elevator_pitch text not null,
+  bio_short text not null,
+  interview_mode text not null default 'brand_architect_mode' check (
+    interview_mode in ('brand_architect_mode')
+  ),
+  interview_answers text[] not null default '{}',
+  interview_transcript text not null,
+  approved_at timestamptz,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now()),
+  constraint brand_blueprints_personality_traits_count check (
+    array_length(personality_traits, 1) between 3 and 5
+  ),
+  constraint brand_blueprints_content_pillars_count check (
+    jsonb_typeof(content_pillars) = 'array'
+    and jsonb_array_length(content_pillars) = 3
+  ),
+  constraint brand_blueprints_interview_answers_count check (
+    array_length(interview_answers, 1) = 3
+  )
+);
+
+alter table public.brand_blueprints
+  add column if not exists onboarding_path text;
+
+update public.brand_blueprints
+set onboarding_path = coalesce(onboarding_path, 'build_personal_brand');
+
+alter table public.brand_blueprints
+  alter column onboarding_path set default 'build_personal_brand';
+
+alter table public.brand_blueprints
+  alter column onboarding_path set not null;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'brand_blueprints_onboarding_path_check'
+  ) then
+    alter table public.brand_blueprints
+      add constraint brand_blueprints_onboarding_path_check
+      check (onboarding_path in ('build_personal_brand', 'find_what_to_be_known_for', 'find_my_niche'));
+  end if;
+end
+$$;
 
 create table if not exists public.briefs (
   id uuid primary key default gen_random_uuid(),
@@ -126,6 +197,9 @@ alter table public.posts
 create index if not exists briefs_user_id_created_at_idx
   on public.briefs (user_id, created_at desc);
 
+create index if not exists brand_blueprints_user_id_updated_at_idx
+  on public.brand_blueprints (user_id, updated_at desc);
+
 create unique index if not exists briefs_user_id_workflow_id_uidx
   on public.briefs (user_id, workflow_id);
 
@@ -153,6 +227,11 @@ create trigger profiles_set_updated_at
 before update on public.profiles
 for each row execute function public.set_updated_at();
 
+drop trigger if exists brand_blueprints_set_updated_at on public.brand_blueprints;
+create trigger brand_blueprints_set_updated_at
+before update on public.brand_blueprints
+for each row execute function public.set_updated_at();
+
 drop trigger if exists briefs_set_updated_at on public.briefs;
 create trigger briefs_set_updated_at
 before update on public.briefs
@@ -164,6 +243,7 @@ before update on public.posts
 for each row execute function public.set_updated_at();
 
 alter table public.profiles enable row level security;
+alter table public.brand_blueprints enable row level security;
 alter table public.briefs enable row level security;
 alter table public.posts enable row level security;
 
@@ -201,6 +281,47 @@ begin
   ) then
     create policy profiles_update_own
       on public.profiles
+      for update
+      using (auth.uid() = user_id)
+      with check (auth.uid() = user_id);
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'brand_blueprints'
+      and policyname = 'brand_blueprints_select_own'
+  ) then
+    create policy brand_blueprints_select_own
+      on public.brand_blueprints
+      for select
+      using (auth.uid() = user_id);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'brand_blueprints'
+      and policyname = 'brand_blueprints_insert_own'
+  ) then
+    create policy brand_blueprints_insert_own
+      on public.brand_blueprints
+      for insert
+      with check (auth.uid() = user_id);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'brand_blueprints'
+      and policyname = 'brand_blueprints_update_own'
+  ) then
+    create policy brand_blueprints_update_own
+      on public.brand_blueprints
       for update
       using (auth.uid() = user_id)
       with check (auth.uid() = user_id);

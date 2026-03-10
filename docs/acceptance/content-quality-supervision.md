@@ -45,7 +45,15 @@ Expected:
 - [ ] Instruction is reflected in the regenerated output tone/focus
 - [ ] Existing persistence flow remains intact
 
-## 5) Regression safety
+## 5) Re-score after manual changes
+
+Expected:
+
+- [ ] Quality review can be recalculated after manual edits/regeneration
+- [ ] Similarity pairs and flags refresh based on latest draft text
+- [ ] Supervisor angles remain visible in updated report
+
+## 6) Regression safety
 
 Expected:
 

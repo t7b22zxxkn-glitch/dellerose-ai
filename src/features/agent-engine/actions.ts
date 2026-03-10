@@ -21,6 +21,7 @@ import {
 } from "@/lib/schemas/domain"
 import type {
   AgentOutput,
+  BrandBlueprint,
   BrandProfile,
   ContentBrief,
   DraftQualityFlag,
@@ -442,6 +443,7 @@ function buildDraftQualityReport(input: {
 type AgentGeneratorInput = {
   brief: ContentBrief
   brandProfile: BrandProfile
+  brandBlueprint?: BrandBlueprint
   supervisorGuidance?: SupervisorGuidance
   regenerationInstruction?: string
 }
@@ -462,11 +464,21 @@ type RegeneratePlatformDraftResult =
     output: AgentOutput
   }>
 
+type RescoreDraftQualityResult = ActionResult<{
+  qualityReport: DraftQualityReport
+}>
+
 const regenerateInstructionSchema = z.string().trim().min(3).max(280)
+const rescoreDraftQualityInputSchema = z.object({
+  brief: contentBriefSchema,
+  outputs: z.array(agentOutputSchema).length(5),
+  previousQualityReport: draftQualityReportSchema.nullable().optional(),
+})
 
 const ACTION_GENERATE_PLATFORM_DRAFTS = "agent_engine.generate_platform_drafts"
 const ACTION_REGENERATE_PLATFORM_DRAFT = "agent_engine.regenerate_platform_draft"
 const ACTION_SUPERVISOR_GUIDANCE = "agent_engine.supervisor_guidance"
+const ACTION_RESCORE_DRAFT_QUALITY = "agent_engine.rescore_draft_quality"
 const PLATFORM_AGENT_MODEL = "gpt-4o"
 
 function resolveOnboardingErrorCode(
@@ -596,6 +608,7 @@ export async function generatePlatformDraftsAction(
 
     const onboarding = await getOnboardingBootstrap()
     const brandProfile = onboarding.profile
+    const brandBlueprint = onboarding.blueprint?.blueprint
 
     if (!brandProfile) {
       return fail({
@@ -617,6 +630,7 @@ export async function generatePlatformDraftsAction(
     const generatorInput = {
       brief: parsedBrief.data,
       brandProfile,
+      brandBlueprint,
       supervisorGuidance: supervisorResult.guidance,
     }
 
@@ -842,6 +856,7 @@ export async function regeneratePlatformDraftAction(
 
     const onboarding = await getOnboardingBootstrap()
     const brandProfile = onboarding.profile
+    const brandBlueprint = onboarding.blueprint?.blueprint
 
     if (!brandProfile) {
       return fail({
@@ -868,6 +883,7 @@ export async function regeneratePlatformDraftAction(
         return await platformGenerators[parsedPlatform.data]({
           brief: parsedBrief.data,
           brandProfile,
+          brandBlueprint,
           supervisorGuidance: supervisorResult.guidance,
           regenerationInstruction:
             parsedInstruction && parsedInstruction.success ? parsedInstruction.data : undefined,
@@ -931,6 +947,118 @@ export async function regeneratePlatformDraftAction(
       message: "Regenerering fejlede. Prøv igen.",
       retryable: true,
       platform,
+      errorType: error instanceof Error ? error.name : "UnknownError",
+    })
+  }
+}
+
+export async function rescoreDraftQualityAction(
+  rawInput: unknown
+): Promise<RescoreDraftQualityResult> {
+  const requestId = createRequestId()
+  const startedAt = Date.now()
+  const resolveLatencyMs = () => Date.now() - startedAt
+
+  const fail = (input: {
+    code: "invalid_input" | "validation_failed" | "internal_error"
+    message: string
+    retryable: boolean
+    logLevel?: "warn" | "error"
+    errorType?: string
+    metadata?: Record<string, unknown>
+  }) => {
+    const failure = createActionFailure({
+      code: input.code,
+      message: input.message,
+      retryable: input.retryable,
+      requestId,
+    })
+
+    const payload = {
+      requestId,
+      actionName: ACTION_RESCORE_DRAFT_QUALITY,
+      model: PLATFORM_AGENT_MODEL,
+      latencyMs: resolveLatencyMs(),
+      errorCode: failure.code,
+      errorType: input.errorType ?? null,
+      message: failure.message,
+      metadata: {
+        retryable: failure.retryable,
+        ...(input.metadata ?? {}),
+      },
+    }
+
+    if (input.logLevel === "warn") {
+      logActionWarn(payload)
+    } else {
+      logActionError(payload)
+    }
+
+    return failure
+  }
+
+  try {
+    const parsedInput = rescoreDraftQualityInputSchema.safeParse(rawInput)
+    if (!parsedInput.success) {
+      return fail({
+        code: "invalid_input",
+        message: "Draft quality input kunne ikke valideres.",
+        retryable: false,
+        logLevel: "warn",
+        metadata: {
+          issueCount: parsedInput.error.issues.length,
+        },
+      })
+    }
+
+    const input = parsedInput.data
+    const guidance: SupervisorGuidance = input.previousQualityReport
+      ? {
+          promptVersion: input.previousQualityReport.supervisorPromptVersion,
+          globalDirection: input.previousQualityReport.globalDirection,
+          platformAngles: input.previousQualityReport.platformAngles,
+        }
+      : buildFallbackSupervisorGuidance(input.brief)
+
+    const diversityResult = enforcePlatformDiversity(input.outputs, input.brief, guidance)
+    const parsedOutputs = platformOutputsSchema.safeParse(diversityResult.outputs)
+    if (!parsedOutputs.success) {
+      return fail({
+        code: "validation_failed",
+        message: "Rescore kunne ikke validere draft outputs.",
+        retryable: false,
+        metadata: {
+          validationIssueCount: parsedOutputs.error.issues.length,
+        },
+      })
+    }
+
+    const qualityReport = buildDraftQualityReport({
+      outputs: parsedOutputs.data,
+      guidance,
+      diversityAdjustedPlatforms: diversityResult.adjustedPlatforms,
+      similarityPairs: diversityResult.similarityPairs,
+      maxSimilarityScore: diversityResult.maxSimilarityScore,
+    })
+
+    logActionInfo({
+      requestId,
+      actionName: ACTION_RESCORE_DRAFT_QUALITY,
+      model: PLATFORM_AGENT_MODEL,
+      latencyMs: resolveLatencyMs(),
+      message: "Draft quality report was recalculated.",
+      metadata: {
+        adjustedPlatforms: diversityResult.adjustedPlatforms,
+        flagCount: qualityReport.flags.length,
+      },
+    })
+
+    return createActionSuccess(requestId, { qualityReport })
+  } catch (error: unknown) {
+    return fail({
+      code: "internal_error",
+      message: "Uventet fejl under recalculation af draft quality.",
+      retryable: true,
       errorType: error instanceof Error ? error.name : "UnknownError",
     })
   }
