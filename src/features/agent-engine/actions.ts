@@ -16,12 +16,16 @@ import { generateTwitterAgentOutput } from "@/lib/agents/twitter"
 import {
   agentOutputSchema,
   contentBriefSchema,
+  draftQualityReportSchema,
   platformSchema,
 } from "@/lib/schemas/domain"
 import type {
   AgentOutput,
   BrandProfile,
   ContentBrief,
+  DraftQualityFlag,
+  DraftQualityReport,
+  DraftSimilarityPair,
   Platform,
 } from "@/lib/types/domain"
 import {
@@ -39,6 +43,7 @@ import {
 
 type GeneratePlatformDraftsResult = ActionResult<{
   outputs: AgentOutput[]
+  qualityReport: DraftQualityReport
 }>
 
 const platformOutputsSchema = z.array(agentOutputSchema).length(5)
@@ -299,6 +304,7 @@ function enforcePlatformDiversity(
 ): {
   outputs: AgentOutput[]
   adjustedPlatforms: Platform[]
+  similarityPairs: DraftSimilarityPair[]
   maxSimilarityScore: number
 } {
   const normalizedByPlatform = new Map<Platform, string[]>()
@@ -311,6 +317,7 @@ function enforcePlatformDiversity(
   }
 
   const platformsToAdjust = new Set<Platform>()
+  const similarityPairs: DraftSimilarityPair[] = []
   let maxSimilarityScore = 0
 
   for (let leftIndex = 0; leftIndex < outputs.length; leftIndex += 1) {
@@ -321,6 +328,12 @@ function enforcePlatformDiversity(
       const rightTokens = normalizedByPlatform.get(right.platform) ?? []
       const similarityScore = calculateJaccardSimilarity(leftTokens, rightTokens)
       maxSimilarityScore = Math.max(maxSimilarityScore, similarityScore)
+      similarityPairs.push({
+        leftPlatform: left.platform,
+        rightPlatform: right.platform,
+        similarityScore: Number(similarityScore.toFixed(3)),
+        exceedsThreshold: similarityScore >= DIVERSITY_SIMILARITY_THRESHOLD,
+      })
 
       if (similarityScore >= DIVERSITY_SIMILARITY_THRESHOLD) {
         platformsToAdjust.add(left.platform)
@@ -333,6 +346,7 @@ function enforcePlatformDiversity(
     return {
       outputs,
       adjustedPlatforms: [],
+      similarityPairs,
       maxSimilarityScore,
     }
   }
@@ -347,14 +361,89 @@ function enforcePlatformDiversity(
   return {
     outputs: diversified,
     adjustedPlatforms: platformOrder.filter((platform) => platformsToAdjust.has(platform)),
+    similarityPairs,
     maxSimilarityScore,
   }
+}
+
+function calculateAngleAlignmentScore(angle: string, output: AgentOutput): number {
+  const angleTokens = normalizeTextForSimilarity(angle)
+  const outputTokens = normalizeTextForSimilarity(`${output.hook}\n${output.body}\n${output.cta}`)
+
+  if (angleTokens.length === 0 || outputTokens.length === 0) {
+    return 0
+  }
+
+  const outputSet = new Set(outputTokens)
+  let alignedCount = 0
+  for (const token of new Set(angleTokens)) {
+    if (outputSet.has(token)) {
+      alignedCount += 1
+    }
+  }
+
+  return alignedCount / new Set(angleTokens).size
+}
+
+function buildDraftQualityReport(input: {
+  outputs: AgentOutput[]
+  guidance: SupervisorGuidance
+  diversityAdjustedPlatforms: Platform[]
+  similarityPairs: DraftSimilarityPair[]
+  maxSimilarityScore: number
+}): DraftQualityReport {
+  const flags: DraftQualityFlag[] = []
+
+  for (const pair of input.similarityPairs) {
+    if (!pair.exceedsThreshold) {
+      continue
+    }
+    flags.push({
+      platform: pair.leftPlatform,
+      code: "high_cross_platform_similarity",
+      severity: "warning",
+      message: `${pair.leftPlatform} og ${pair.rightPlatform} har høj tekst-overlap (${Math.round(pair.similarityScore * 100)}%).`,
+    })
+    flags.push({
+      platform: pair.rightPlatform,
+      code: "high_cross_platform_similarity",
+      severity: "warning",
+      message: `${pair.rightPlatform} og ${pair.leftPlatform} har høj tekst-overlap (${Math.round(pair.similarityScore * 100)}%).`,
+    })
+  }
+
+  for (const output of input.outputs) {
+    const angle = input.guidance.platformAngles[output.platform]
+    const alignmentScore = calculateAngleAlignmentScore(angle, output)
+    if (alignmentScore < 0.15) {
+      flags.push({
+        platform: output.platform,
+        code: "low_angle_alignment",
+        severity: "warning",
+        message: `${output.platform} følger kun svagt supervisor-vinklen (${Math.round(alignmentScore * 100)}% token-match).`,
+      })
+    }
+  }
+
+  const report = draftQualityReportSchema.parse({
+    supervisorPromptVersion: input.guidance.promptVersion,
+    globalDirection: input.guidance.globalDirection,
+    platformAngles: input.guidance.platformAngles,
+    similarityThreshold: DIVERSITY_SIMILARITY_THRESHOLD,
+    maxSimilarityScore: Number(input.maxSimilarityScore.toFixed(3)),
+    similarityPairs: input.similarityPairs,
+    diversityAdjustedPlatforms: input.diversityAdjustedPlatforms,
+    flags,
+  })
+
+  return report
 }
 
 type AgentGeneratorInput = {
   brief: ContentBrief
   brandProfile: BrandProfile
   supervisorGuidance?: SupervisorGuidance
+  regenerationInstruction?: string
 }
 
 const platformGenerators: Record<
@@ -372,6 +461,8 @@ type RegeneratePlatformDraftResult =
   ActionResult<{
     output: AgentOutput
   }>
+
+const regenerateInstructionSchema = z.string().trim().min(3).max(280)
 
 const ACTION_GENERATE_PLATFORM_DRAFTS = "agent_engine.generate_platform_drafts"
 const ACTION_REGENERATE_PLATFORM_DRAFT = "agent_engine.regenerate_platform_draft"
@@ -589,6 +680,14 @@ export async function generatePlatformDraftsAction(
       })
     }
 
+    const qualityReport = buildDraftQualityReport({
+      outputs: diversityValidated.data,
+      guidance: supervisorResult.guidance,
+      diversityAdjustedPlatforms: diversityResult.adjustedPlatforms,
+      similarityPairs: diversityResult.similarityPairs,
+      maxSimilarityScore: diversityResult.maxSimilarityScore,
+    })
+
     if (fallbackPlatforms.length > 0) {
       logActionWarn({
         requestId,
@@ -634,10 +733,11 @@ export async function generatePlatformDraftsAction(
         supervisorPromptVersion: supervisorResult.guidance.promptVersion,
         diversityAdjustedCount: diversityResult.adjustedPlatforms.length,
         maxSimilarityScore: Number(diversityResult.maxSimilarityScore.toFixed(3)),
+        qualityFlagCount: qualityReport.flags.length,
       },
     })
 
-    return createActionSuccess(requestId, { outputs: diversityValidated.data })
+    return createActionSuccess(requestId, { outputs: diversityValidated.data, qualityReport })
   } catch (error: unknown) {
     return fail({
       code: "external_service_error",
@@ -651,7 +751,8 @@ export async function generatePlatformDraftsAction(
 
 export async function regeneratePlatformDraftAction(
   platform: Platform,
-  brief: ContentBrief
+  brief: ContentBrief,
+  instruction?: string
 ): Promise<RegeneratePlatformDraftResult> {
   const requestId = createRequestId()
   const startedAt = Date.now()
@@ -720,11 +821,19 @@ export async function regeneratePlatformDraftAction(
 
     const parsedPlatform = platformSchema.safeParse(platform)
     const parsedBrief = contentBriefSchema.safeParse(brief)
+    const parsedInstruction =
+      typeof instruction === "string" && instruction.trim().length > 0
+        ? regenerateInstructionSchema.safeParse(instruction)
+        : null
 
-    if (!parsedPlatform.success || !parsedBrief.success) {
+    if (
+      !parsedPlatform.success ||
+      !parsedBrief.success ||
+      (parsedInstruction !== null && !parsedInstruction.success)
+    ) {
       return fail({
         code: "invalid_input",
-        message: "Platform eller ContentBrief er ugyldig.",
+        message: "Platform, ContentBrief eller instruction er ugyldig.",
         retryable: false,
         platform,
         logLevel: "warn",
@@ -760,6 +869,8 @@ export async function regeneratePlatformDraftAction(
           brief: parsedBrief.data,
           brandProfile,
           supervisorGuidance: supervisorResult.guidance,
+          regenerationInstruction:
+            parsedInstruction && parsedInstruction.success ? parsedInstruction.data : undefined,
         })
       } catch (error: unknown) {
         usedFallback = true
@@ -809,6 +920,7 @@ export async function regeneratePlatformDraftAction(
         fallbackApplied: usedFallback,
         supervisorFallback: supervisorResult.usedFallback,
         supervisorPromptVersion: supervisorResult.guidance.promptVersion,
+        hasInstruction: Boolean(parsedInstruction && parsedInstruction.success),
       },
     })
 

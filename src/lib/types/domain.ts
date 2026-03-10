@@ -50,6 +50,31 @@ export type AgentOutput = {
   status: PostStatus
 }
 
+export type DraftSimilarityPair = {
+  leftPlatform: Platform
+  rightPlatform: Platform
+  similarityScore: number
+  exceedsThreshold: boolean
+}
+
+export type DraftQualityFlag = {
+  platform: Platform
+  code: "low_angle_alignment" | "high_cross_platform_similarity"
+  severity: "warning" | "critical"
+  message: string
+}
+
+export type DraftQualityReport = {
+  supervisorPromptVersion: string
+  globalDirection: string
+  platformAngles: Record<Platform, string>
+  similarityThreshold: number
+  maxSimilarityScore: number
+  similarityPairs: DraftSimilarityPair[]
+  diversityAdjustedPlatforms: Platform[]
+  flags: DraftQualityFlag[]
+}
+
 export type PostPlan = {
   id: string
   platform: Platform

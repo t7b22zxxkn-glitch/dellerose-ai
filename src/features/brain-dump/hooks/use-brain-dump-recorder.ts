@@ -306,7 +306,7 @@ export function useBrainDumpRecorder(): UseBrainDumpRecorderState &
       }
 
       setPlatformDrafts(result.outputs)
-      setWorkflowDrafts(result.outputs)
+      setWorkflowDrafts(result.outputs, result.qualityReport)
     } catch {
       setPlatformDrafts([])
       setPlatformDraftErrorMessage(

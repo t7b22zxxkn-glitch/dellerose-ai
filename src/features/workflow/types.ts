@@ -1,4 +1,10 @@
-import type { AgentOutput, ContentBrief, Intent, PostPlan } from "@/lib/types/domain"
+import type {
+  AgentOutput,
+  ContentBrief,
+  DraftQualityReport,
+  Intent,
+  PostPlan,
+} from "@/lib/types/domain"
 
 export type WorkflowChatRole = "system" | "user" | "agent"
 
@@ -14,6 +20,7 @@ export type WorkflowSnapshot = {
   transcript: string
   brief: ContentBrief | null
   drafts: AgentOutput[]
+  draftQualityReport: DraftQualityReport | null
   postPlans: PostPlan[]
   chatLog: WorkflowChatItem[]
 }
@@ -23,6 +30,7 @@ export type PersistedWorkflowSnapshot = {
   transcript: string
   brief: ContentBrief
   drafts: AgentOutput[]
+  draftQualityReport: DraftQualityReport | null
   postPlans: PostPlan[]
   chatLog: WorkflowChatItem[]
 }

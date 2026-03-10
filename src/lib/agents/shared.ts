@@ -39,6 +39,7 @@ type PlatformAgentInput = {
   brief: ContentBrief
   brandProfile: BrandProfile
   supervisorGuidance?: SupervisorGuidance
+  regenerationInstruction?: string
 }
 
 class AgentOutputValidationError extends Error {
@@ -99,6 +100,13 @@ Creative Supervisor guidance (version: ${input.supervisorGuidance.promptVersion}
 - Platform angle (${rules.platform}): ${input.supervisorGuidance.platformAngles[rules.platform]}
 `.trim()
     : "Creative Supervisor guidance: ikke tilgængelig."
+  const regenerationInstructionSection =
+    input.regenerationInstruction && input.regenerationInstruction.trim().length > 0
+      ? `
+Regenerate instruction fra bruger:
+${input.regenerationInstruction.trim()}
+`
+      : ""
 
   return `
 Du er en specialiseret ${rules.platform}-agent i DelleRose.ai.
@@ -116,6 +124,7 @@ ${rules.totalMaxChars ? `- Total (hook+body+cta) max: ${rules.totalMaxChars}` : 
 - Hook/body/cta skal være platform-specifik og ikke en kopi fra andre platforme.
 
 ${supervisorSection}
+${regenerationInstructionSection}
 
 BrandProfile:
 ${JSON.stringify(input.brandProfile, null, 2)}

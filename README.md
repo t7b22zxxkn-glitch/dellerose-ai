@@ -111,3 +111,4 @@ See `docs/architecture.md` for folder structure and module boundaries.
 ## Acceptance checklists
 
 - Scheduler automation: `docs/acceptance/scheduler-automation.md`
+- Content quality supervision: `docs/acceptance/content-quality-supervision.md`

@@ -61,6 +61,37 @@ export const agentOutputSchema = z.object({
   status: postStatusSchema,
 })
 
+export const draftSimilarityPairSchema = z.object({
+  leftPlatform: platformSchema,
+  rightPlatform: platformSchema,
+  similarityScore: z.number().min(0).max(1),
+  exceedsThreshold: z.boolean(),
+})
+
+export const draftQualityFlagSchema = z.object({
+  platform: platformSchema,
+  code: z.enum(["low_angle_alignment", "high_cross_platform_similarity"]),
+  severity: z.enum(["warning", "critical"]),
+  message: z.string().min(1),
+})
+
+export const draftQualityReportSchema = z.object({
+  supervisorPromptVersion: z.string().min(1),
+  globalDirection: z.string().min(1),
+  platformAngles: z.object({
+    linkedin: z.string().min(1),
+    tiktok: z.string().min(1),
+    instagram: z.string().min(1),
+    facebook: z.string().min(1),
+    twitter: z.string().min(1),
+  }),
+  similarityThreshold: z.number().min(0).max(1),
+  maxSimilarityScore: z.number().min(0).max(1),
+  similarityPairs: z.array(draftSimilarityPairSchema),
+  diversityAdjustedPlatforms: z.array(platformSchema),
+  flags: z.array(draftQualityFlagSchema),
+})
+
 export const publishJobSnapshotSchema = z.object({
   status: publishJobStatusSchema,
   attemptCount: z.number().int().min(0),

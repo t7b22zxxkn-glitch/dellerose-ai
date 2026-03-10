@@ -149,6 +149,7 @@ function buildSnapshotFromRows(
     transcript: briefRow.source_transcript,
     brief,
     drafts,
+    draftQualityReport: null,
     postPlans,
     chatLog: [
       {

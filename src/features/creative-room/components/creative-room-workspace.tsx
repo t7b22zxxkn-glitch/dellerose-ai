@@ -14,7 +14,12 @@ import { regeneratePlatformDraftAction } from "@/features/agent-engine/actions"
 import { upsertPostPlanAction } from "@/features/scheduler/actions"
 import { useWorkflowStore } from "@/features/workflow/store"
 import { formatActionErrorMessage } from "@/lib/server-actions/contracts"
-import type { AgentOutput, ContentBrief, Platform } from "@/lib/types/domain"
+import type {
+  AgentOutput,
+  ContentBrief,
+  DraftQualityReport,
+  Platform,
+} from "@/lib/types/domain"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -46,6 +51,83 @@ type DraftCardProps = {
     value: string
   ) => void
   onApproveAndPlan: (platform: Platform, scheduledFor: string | null) => void
+}
+
+function QualityReviewPanel({ report }: { report: DraftQualityReport | null }) {
+  if (!report) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Quality review</CardTitle>
+          <CardDescription>
+            Ingen quality-report endnu. Generér nye platform-drafts for at se
+            supervisor angles, overlap scores og flags.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Quality review</CardTitle>
+        <CardDescription>
+          Supervisor version: {report.supervisorPromptVersion}. Max overlap:{" "}
+          {Math.round(report.maxSimilarityScore * 100)}%.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4 text-xs">
+        <div className="space-y-1">
+          <p className="font-semibold">Global direction</p>
+          <p className="text-muted-foreground">{report.globalDirection}</p>
+        </div>
+
+        <div className="space-y-1">
+          <p className="font-semibold">Platform angles</p>
+          <ul className="space-y-1">
+            {Object.entries(report.platformAngles).map(([platform, angle]) => (
+              <li key={platform} className="rounded-md border bg-muted/40 p-2">
+                <span className="font-medium capitalize">{platform}:</span> {angle}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="space-y-1">
+          <p className="font-semibold">
+            Similarity pairs (threshold {Math.round(report.similarityThreshold * 100)}%)
+          </p>
+          <ul className="space-y-1">
+            {report.similarityPairs.map((pair) => (
+              <li key={`${pair.leftPlatform}-${pair.rightPlatform}`} className="rounded-md border p-2">
+                <span className="capitalize">{pair.leftPlatform}</span> vs{" "}
+                <span className="capitalize">{pair.rightPlatform}</span>:{" "}
+                {Math.round(pair.similarityScore * 100)}%
+                {pair.exceedsThreshold ? " ⚠️" : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="space-y-1">
+          <p className="font-semibold">Flags</p>
+          {report.flags.length === 0 ? (
+            <p className="text-muted-foreground">Ingen quality flags fundet.</p>
+          ) : (
+            <ul className="space-y-1">
+              {report.flags.map((flag, index) => (
+                <li key={`${flag.platform}-${flag.code}-${index}`} className="rounded-md border p-2">
+                  <span className="font-medium capitalize">{flag.platform}</span> · {flag.code}
+                  <p className="text-muted-foreground">{flag.message}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
 }
 
 function getPlatformLabel(platform: Platform): string {
@@ -81,6 +163,7 @@ function DraftPreviewCard({
   const [editingField, setEditingField] = useState<EditableField>(null)
   const [editingValue, setEditingValue] = useState("")
   const [scheduledDate, setScheduledDate] = useState("")
+  const [regenerateInstruction, setRegenerateInstruction] = useState("")
   const [cardErrorMessage, setCardErrorMessage] = useState<string | null>(null)
   const [isRegenerating, startRegenerate] = useTransition()
   const [isPersistingPlan, startPersistPlan] = useTransition()
@@ -130,9 +213,13 @@ function DraftPreviewCard({
     setCardErrorMessage(null)
   }
 
-  const handleRegenerate = () => {
+  const handleRegenerate = (instruction?: string) => {
     startRegenerate(async () => {
-      const result = await regeneratePlatformDraftAction(draft.platform, brief)
+      const result = await regeneratePlatformDraftAction(
+        draft.platform,
+        brief,
+        instruction
+      )
 
       if (!result.success) {
         setCardErrorMessage(formatActionErrorMessage(result))
@@ -154,6 +241,9 @@ function DraftPreviewCard({
 
       onReplaceDraft(regeneratedDraft)
       setCardErrorMessage(null)
+      if (instruction) {
+        setRegenerateInstruction("")
+      }
     })
   }
 
@@ -320,11 +410,33 @@ function DraftPreviewCard({
               <Button
                 type="button"
                 variant="outline"
-                onClick={handleRegenerate}
+                onClick={() => handleRegenerate()}
                 disabled={isRegenerating || isPersistingPlan || isFieldLocked}
               >
                 <RefreshCcw className="h-4 w-4" />
                 {isRegenerating ? "Regenererer..." : "Regenerate"}
+              </Button>
+            </div>
+
+            <div className="space-y-2">
+              <Textarea
+                value={regenerateInstruction}
+                onChange={(event) => setRegenerateInstruction(event.target.value)}
+                className="min-h-[84px]"
+                placeholder="Regenerate with instruction… fx: gør tonen mere autoritativ og tilføj stærkere CTA."
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleRegenerate(regenerateInstruction)}
+                disabled={
+                  isRegenerating ||
+                  isPersistingPlan ||
+                  isFieldLocked ||
+                  regenerateInstruction.trim().length < 3
+                }
+              >
+                Regenerate med instruction
               </Button>
             </div>
 
@@ -356,6 +468,7 @@ export function CreativeRoomWorkspace() {
   const transcript = useWorkflowStore((state) => state.transcript)
   const brief = useWorkflowStore((state) => state.brief)
   const drafts = useWorkflowStore((state) => state.drafts)
+  const draftQualityReport = useWorkflowStore((state) => state.draftQualityReport)
   const postPlans = useWorkflowStore((state) => state.postPlans)
   const chatLog = useWorkflowStore((state) => state.chatLog)
   const replaceDraft = useWorkflowStore((state) => state.replaceDraft)
@@ -457,6 +570,8 @@ export function CreativeRoomWorkspace() {
             </Button>
           </CardContent>
         </Card>
+
+        <QualityReviewPanel report={draftQualityReport} />
 
         <div className="grid gap-4 md:grid-cols-2">
           {drafts.map((draft) => (
