@@ -57,6 +57,12 @@ export default function Home() {
               <ArrowRight className="h-4 w-4" />
             </Link>
           </Button>
+          <Button asChild size="lg" variant="outline">
+            <Link href="/ideas">
+              Giv mig en idé
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
         </div>
       </section>
     </main>

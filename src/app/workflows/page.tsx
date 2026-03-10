@@ -3,10 +3,11 @@ import { Layers2 } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { WorkflowLibrary } from "@/features/workflow/components/workflow-library"
 import { getPersistedWorkflowList } from "@/features/workflow/queries"
-import { requireAuthenticatedUser } from "@/lib/auth/guards"
+import { requireApprovedBrandBlueprint, requireAuthenticatedUser } from "@/lib/auth/guards"
 
 export default async function WorkflowsPage() {
   await requireAuthenticatedUser("/workflows")
+  await requireApprovedBrandBlueprint("/workflows")
   const workflows = await getPersistedWorkflowList()
 
   return (

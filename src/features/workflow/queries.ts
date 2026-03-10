@@ -2,7 +2,12 @@ import "server-only"
 
 import { z } from "zod"
 
-import { agentOutputSchema, contentBriefSchema, postPlanSchema } from "@/lib/schemas/domain"
+import {
+  agentOutputSchema,
+  contentBriefSchema,
+  draftQualityReportSchema,
+  postPlanSchema,
+} from "@/lib/schemas/domain"
 import { resolveCurrentUserId } from "@/lib/supabase/auth"
 import { isSupabaseConfigured } from "@/lib/supabase/config"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
@@ -107,7 +112,8 @@ async function getSupabaseWithUser() {
 function buildSnapshotFromRows(
   briefRow: z.infer<typeof briefRowSchema>,
   postRows: z.infer<typeof postRowSchema>[],
-  publishJobByPlatform: Map<string, NonNullable<PostPlan["publishJob"]>>
+  publishJobByPlatform: Map<string, NonNullable<PostPlan["publishJob"]>>,
+  draftQualityReport: z.infer<typeof draftQualityReportSchema> | null
 ): PersistedWorkflowSnapshot {
   const brief = contentBriefSchema.parse({
     coreMessage: briefRow.core_message,
@@ -149,7 +155,7 @@ function buildSnapshotFromRows(
     transcript: briefRow.source_transcript,
     brief,
     drafts,
-    draftQualityReport: null,
+    draftQualityReport,
     postPlans,
     chatLog: [
       {
@@ -416,11 +422,29 @@ export async function getPersistedWorkflowSnapshotById(
       }
     }
 
+    const { data: qualityReportRow, error: qualityReportError } = await supabase
+      .from("workflow_quality_reports")
+      .select("quality_report")
+      .eq("user_id", userId)
+      .eq("workflow_id", parsedWorkflowId.data)
+      .maybeSingle()
+
+    let draftQualityReport: z.infer<typeof draftQualityReportSchema> | null = null
+    if (!qualityReportError && qualityReportRow?.quality_report) {
+      const parsedQualityReport = draftQualityReportSchema.safeParse(
+        qualityReportRow.quality_report
+      )
+      if (parsedQualityReport.success) {
+        draftQualityReport = parsedQualityReport.data
+      }
+    }
+
     return {
       snapshot: buildSnapshotFromRows(
         parsedBriefRow.data,
         parsedPostRows.data,
-        publishJobByPlatform
+        publishJobByPlatform,
+        draftQualityReport
       ),
       notice: null,
     }

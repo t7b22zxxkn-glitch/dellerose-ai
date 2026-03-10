@@ -10,7 +10,7 @@ import {
   getPersistedWorkflowList,
   getPersistedWorkflowSnapshotById,
 } from "@/features/workflow/queries"
-import { requireAuthenticatedUser } from "@/lib/auth/guards"
+import { requireApprovedBrandBlueprint, requireAuthenticatedUser } from "@/lib/auth/guards"
 
 type SchedulerPageProps = {
   searchParams?: Promise<{
@@ -20,6 +20,7 @@ type SchedulerPageProps = {
 
 export default async function SchedulerPage({ searchParams }: SchedulerPageProps) {
   await requireAuthenticatedUser("/scheduler")
+  await requireApprovedBrandBlueprint("/scheduler")
   const workflowList = await getPersistedWorkflowList()
   const resolvedSearchParams = searchParams ? await searchParams : undefined
   const requestedWorkflowId = resolvedSearchParams?.workflow

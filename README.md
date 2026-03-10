@@ -56,6 +56,7 @@ Open `http://localhost:3000/brand-blueprint` to run Brand Blueprint onboarding.
 Open `http://localhost:3000/brain-dump` to run voice Brain Dump.
 Open `http://localhost:3000/creative-room` for review and editing.
 Open `http://localhost:3000/scheduler` for scheduling flow.
+Open `http://localhost:3000/ideas` for blueprint-based idea generation.
 Open `http://localhost:3000/login` for Supabase Auth sign-in/up.
 Open `http://localhost:3000/workflows` for workflow history.
 
@@ -95,6 +96,7 @@ If you use token-based auth in CI, set `SUPABASE_ACCESS_TOKEN` and
 ## Current MVP modules
 
 - ✅ Brand Blueprint onboarding (3-question voice interview + persistent strategy layer)
+- ✅ “Giv mig en idé” v1 (3-5 ideas per pillar from approved Brand Blueprint)
 - ✅ BrandProfile onboarding flow (implemented)
 - ✅ Brain Dump (voice + whisper + Master Agent brief)
 - ✅ Master Agent via Server Action (typed ContentBrief)
@@ -116,3 +118,4 @@ Brand Blueprint module structure: `docs/brand-blueprint-architecture.md`.
 - Scheduler automation: `docs/acceptance/scheduler-automation.md`
 - Content quality supervision: `docs/acceptance/content-quality-supervision.md`
 - Brand Blueprint onboarding: `docs/acceptance/brand-blueprint-onboarding.md`
+- Idea Generator v1: `docs/acceptance/idea-generator-v1.md`

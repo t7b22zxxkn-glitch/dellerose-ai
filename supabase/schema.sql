@@ -165,6 +165,15 @@ create table if not exists public.posts (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+create table if not exists public.workflow_quality_reports (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  workflow_id uuid not null,
+  quality_report jsonb not null,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
 alter table public.briefs
   add column if not exists workflow_id uuid;
 
@@ -209,6 +218,12 @@ create index if not exists posts_user_id_status_scheduled_idx
 create index if not exists posts_brief_id_idx
   on public.posts (brief_id);
 
+create unique index if not exists workflow_quality_reports_user_workflow_uidx
+  on public.workflow_quality_reports (user_id, workflow_id);
+
+create index if not exists workflow_quality_reports_user_updated_idx
+  on public.workflow_quality_reports (user_id, updated_at desc);
+
 create unique index if not exists posts_user_id_workflow_id_platform_uidx
   on public.posts (user_id, workflow_id, platform);
 
@@ -242,10 +257,16 @@ create trigger posts_set_updated_at
 before update on public.posts
 for each row execute function public.set_updated_at();
 
+drop trigger if exists workflow_quality_reports_set_updated_at on public.workflow_quality_reports;
+create trigger workflow_quality_reports_set_updated_at
+before update on public.workflow_quality_reports
+for each row execute function public.set_updated_at();
+
 alter table public.profiles enable row level security;
 alter table public.brand_blueprints enable row level security;
 alter table public.briefs enable row level security;
 alter table public.posts enable row level security;
+alter table public.workflow_quality_reports enable row level security;
 
 do $$
 begin
@@ -281,6 +302,47 @@ begin
   ) then
     create policy profiles_update_own
       on public.profiles
+      for update
+      using (auth.uid() = user_id)
+      with check (auth.uid() = user_id);
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'workflow_quality_reports'
+      and policyname = 'workflow_quality_reports_select_own'
+  ) then
+    create policy workflow_quality_reports_select_own
+      on public.workflow_quality_reports
+      for select
+      using (auth.uid() = user_id);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'workflow_quality_reports'
+      and policyname = 'workflow_quality_reports_insert_own'
+  ) then
+    create policy workflow_quality_reports_insert_own
+      on public.workflow_quality_reports
+      for insert
+      with check (auth.uid() = user_id);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'workflow_quality_reports'
+      and policyname = 'workflow_quality_reports_update_own'
+  ) then
+    create policy workflow_quality_reports_update_own
+      on public.workflow_quality_reports
       for update
       using (auth.uid() = user_id)
       with check (auth.uid() = user_id);

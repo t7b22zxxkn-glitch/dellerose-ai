@@ -41,6 +41,9 @@ import {
   createActionSuccess,
   type ActionResult,
 } from "@/lib/server-actions/contracts"
+import { resolveCurrentUserId } from "@/lib/supabase/auth"
+import { isSupabaseConfigured } from "@/lib/supabase/config"
+import { createSupabaseServerClient } from "@/lib/supabase/server"
 
 type GeneratePlatformDraftsResult = ActionResult<{
   outputs: AgentOutput[]
@@ -469,7 +472,9 @@ type RescoreDraftQualityResult = ActionResult<{
 }>
 
 const regenerateInstructionSchema = z.string().trim().min(3).max(280)
+const workflowIdSchema = z.string().uuid()
 const rescoreDraftQualityInputSchema = z.object({
+  workflowId: workflowIdSchema.optional(),
   brief: contentBriefSchema,
   outputs: z.array(agentOutputSchema).length(5),
   previousQualityReport: draftQualityReportSchema.nullable().optional(),
@@ -530,8 +535,81 @@ async function resolveSupervisorGuidance(input: {
   }
 }
 
+async function persistWorkflowQualityReport(input: {
+  requestId: string
+  workflowId: string
+  qualityReport: DraftQualityReport
+  actionName: string
+}): Promise<
+  | {
+      success: true
+      userId: string
+    }
+  | {
+      success: false
+      message: string
+      code: "missing_dependency" | "unauthorized" | "database_error"
+      retryable: boolean
+      errorType?: string
+    }
+> {
+  if (!isSupabaseConfigured()) {
+    return {
+      success: false,
+      code: "missing_dependency",
+      message: "Supabase er ikke konfigureret. Kan ikke gemme quality report.",
+      retryable: false,
+    }
+  }
+
+  const supabase = await createSupabaseServerClient()
+  const userId = await resolveCurrentUserId(supabase)
+  if (!userId) {
+    return {
+      success: false,
+      code: "unauthorized",
+      message: "Du skal være logget ind for at gemme quality report.",
+      retryable: false,
+    }
+  }
+
+  const { error } = await supabase.from("workflow_quality_reports").upsert(
+    {
+      user_id: userId,
+      workflow_id: input.workflowId,
+      quality_report: input.qualityReport,
+    },
+    { onConflict: "user_id,workflow_id" }
+  )
+
+  if (error) {
+    logActionError({
+      requestId: input.requestId,
+      actionName: input.actionName,
+      userId,
+      workflowId: input.workflowId,
+      message: "Could not persist workflow quality report.",
+      errorCode: "database_error",
+      errorType: error.code,
+    })
+    return {
+      success: false,
+      code: "database_error",
+      message: "Kunne ikke gemme quality report i databasen.",
+      retryable: true,
+      errorType: error.code,
+    }
+  }
+
+  return {
+    success: true,
+    userId,
+  }
+}
+
 export async function generatePlatformDraftsAction(
-  brief: ContentBrief
+  brief: ContentBrief,
+  workflowId?: string
 ): Promise<GeneratePlatformDraftsResult> {
   const requestId = createRequestId()
   const startedAt = Date.now()
@@ -544,6 +622,7 @@ export async function generatePlatformDraftsAction(
       | "unauthorized"
       | "not_found"
       | "validation_failed"
+      | "database_error"
       | "external_service_error"
       | "internal_error"
     message: string
@@ -596,11 +675,15 @@ export async function generatePlatformDraftsAction(
     }
 
     const parsedBrief = contentBriefSchema.safeParse(brief)
+    const parsedWorkflowId =
+      typeof workflowId === "string" && workflowId.length > 0
+        ? workflowIdSchema.safeParse(workflowId)
+        : null
 
-    if (!parsedBrief.success) {
+    if (!parsedBrief.success || (parsedWorkflowId !== null && !parsedWorkflowId.success)) {
       return fail({
         code: "invalid_input",
-        message: "ContentBrief er ugyldig og kunne ikke behandles.",
+        message: "ContentBrief eller workflowId er ugyldig og kunne ikke behandles.",
         retryable: false,
         logLevel: "warn",
       })
@@ -701,6 +784,24 @@ export async function generatePlatformDraftsAction(
       similarityPairs: diversityResult.similarityPairs,
       maxSimilarityScore: diversityResult.maxSimilarityScore,
     })
+
+    if (parsedWorkflowId && parsedWorkflowId.success) {
+      const persistResult = await persistWorkflowQualityReport({
+        requestId,
+        workflowId: parsedWorkflowId.data,
+        qualityReport,
+        actionName: ACTION_GENERATE_PLATFORM_DRAFTS,
+      })
+
+      if (!persistResult.success) {
+        return fail({
+          code: persistResult.code,
+          message: persistResult.message,
+          retryable: persistResult.retryable,
+          errorType: persistResult.errorType,
+        })
+      }
+    }
 
     if (fallbackPlatforms.length > 0) {
       logActionWarn({
@@ -960,7 +1061,13 @@ export async function rescoreDraftQualityAction(
   const resolveLatencyMs = () => Date.now() - startedAt
 
   const fail = (input: {
-    code: "invalid_input" | "validation_failed" | "internal_error"
+    code:
+      | "invalid_input"
+      | "validation_failed"
+      | "missing_dependency"
+      | "unauthorized"
+      | "database_error"
+      | "internal_error"
     message: string
     retryable: boolean
     logLevel?: "warn" | "error"
@@ -1020,8 +1127,7 @@ export async function rescoreDraftQualityAction(
         }
       : buildFallbackSupervisorGuidance(input.brief)
 
-    const diversityResult = enforcePlatformDiversity(input.outputs, input.brief, guidance)
-    const parsedOutputs = platformOutputsSchema.safeParse(diversityResult.outputs)
+    const parsedOutputs = platformOutputsSchema.safeParse(input.outputs)
     if (!parsedOutputs.success) {
       return fail({
         code: "validation_failed",
@@ -1033,6 +1139,8 @@ export async function rescoreDraftQualityAction(
       })
     }
 
+    const diversityResult = enforcePlatformDiversity(parsedOutputs.data, input.brief, guidance)
+
     const qualityReport = buildDraftQualityReport({
       outputs: parsedOutputs.data,
       guidance,
@@ -1040,6 +1148,24 @@ export async function rescoreDraftQualityAction(
       similarityPairs: diversityResult.similarityPairs,
       maxSimilarityScore: diversityResult.maxSimilarityScore,
     })
+
+    if (input.workflowId) {
+      const persistResult = await persistWorkflowQualityReport({
+        requestId,
+        workflowId: input.workflowId,
+        qualityReport,
+        actionName: ACTION_RESCORE_DRAFT_QUALITY,
+      })
+
+      if (!persistResult.success) {
+        return fail({
+          code: persistResult.code,
+          message: persistResult.message,
+          retryable: persistResult.retryable,
+          errorType: persistResult.errorType,
+        })
+      }
+    }
 
     logActionInfo({
       requestId,

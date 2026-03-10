@@ -4,13 +4,11 @@ import Link from "next/link"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { BrainDumpStudio } from "@/features/brain-dump/components/brain-dump-studio"
-import { getOnboardingBootstrap } from "@/features/onboarding/service"
-import { requireAuthenticatedUser } from "@/lib/auth/guards"
+import { requireApprovedBrandBlueprint, requireAuthenticatedUser } from "@/lib/auth/guards"
 
 export default async function BrainDumpPage() {
   await requireAuthenticatedUser("/brain-dump")
-  const onboarding = await getOnboardingBootstrap()
-  const hasApprovedBlueprint = onboarding.blueprint?.status === "approved"
+  await requireApprovedBrandBlueprint("/brain-dump")
 
   return (
     <main className="min-h-screen bg-muted/30 px-4 py-10">
@@ -28,22 +26,20 @@ export default async function BrainDumpPage() {
         </p>
       </section>
 
-      {!hasApprovedBlueprint ? (
-        <section className="mx-auto mb-6 max-w-4xl">
-          <Alert>
-            <AlertTitle>Brand Blueprint anbefales før produktion</AlertTitle>
-            <AlertDescription className="space-y-3">
-              <p>
-                Kør den korte Brand Blueprint onboarding for at give Master Agent en
-                strategisk brandretning (niche, målgruppe og content pillars).
-              </p>
-              <Button asChild variant="outline" size="sm">
-                <Link href="/brand-blueprint">Åbn Brand Blueprint</Link>
-              </Button>
-            </AlertDescription>
-          </Alert>
-        </section>
-      ) : null}
+      <section className="mx-auto mb-6 max-w-4xl">
+        <Alert>
+          <AlertTitle>Brand Blueprint aktiv</AlertTitle>
+          <AlertDescription className="space-y-3">
+            <p>
+              Din Brand Blueprint er godkendt og bruges nu som strategisk kontekst i
+              Master Agent og platform-agenter.
+            </p>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/brand-blueprint">Se eller opdater blueprint</Link>
+            </Button>
+          </AlertDescription>
+        </Alert>
+      </section>
 
       <BrainDumpStudio />
     </main>

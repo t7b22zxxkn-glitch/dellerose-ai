@@ -233,6 +233,7 @@ function DraftPreviewCard({
         currentDraft.platform === draft.platform ? nextDraft : currentDraft
       )
       const qualityResult = await rescoreDraftQualityAction({
+        workflowId,
         brief,
         outputs: nextDrafts,
         previousQualityReport: qualityReport,
@@ -282,6 +283,7 @@ function DraftPreviewCard({
         currentDraft.platform === draft.platform ? regeneratedDraft : currentDraft
       )
       const qualityResult = await rescoreDraftQualityAction({
+        workflowId,
         brief,
         outputs: nextDrafts,
         previousQualityReport: qualityReport,
@@ -533,6 +535,7 @@ export function CreativeRoomWorkspace() {
       }
 
       const result = await rescoreDraftQualityAction({
+        workflowId,
         brief,
         outputs: drafts,
         previousQualityReport: draftQualityReport,

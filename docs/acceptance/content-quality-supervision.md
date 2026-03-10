@@ -59,4 +59,5 @@ Expected:
 
 - [ ] Scheduler flow still works (`pending -> scheduled -> posted`)
 - [ ] Manual fallback copy is unaffected
+- [ ] Quality report persists per workflow and rehydrates on reopen
 - [ ] `pnpm lint` and `pnpm build` pass
