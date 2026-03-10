@@ -6,6 +6,11 @@ import { getOnboardingBootstrap } from "@/features/onboarding/service"
 import { generateFacebookAgentOutput } from "@/lib/agents/facebook"
 import { generateInstagramAgentOutput } from "@/lib/agents/instagram"
 import { generateLinkedInAgentOutput } from "@/lib/agents/linkedin"
+import {
+  buildFallbackSupervisorGuidance,
+  generateSupervisorGuidance,
+  type SupervisorGuidance,
+} from "@/lib/agents/supervisor"
 import { generateTikTokAgentOutput } from "@/lib/agents/tiktok"
 import { generateTwitterAgentOutput } from "@/lib/agents/twitter"
 import {
@@ -88,6 +93,42 @@ const platformOrder: Platform[] = [
   "facebook",
   "twitter",
 ]
+
+const DIVERSITY_SIMILARITY_THRESHOLD = 0.68
+
+function normalizeTextForSimilarity(value: string): string[] {
+  return value
+    .toLowerCase()
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/[#@]/g, " ")
+    .replace(/[^a-z0-9æøå\s]/gi, " ")
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3)
+}
+
+function calculateJaccardSimilarity(leftTokens: string[], rightTokens: string[]): number {
+  if (leftTokens.length === 0 || rightTokens.length === 0) {
+    return 0
+  }
+
+  const leftSet = new Set(leftTokens)
+  const rightSet = new Set(rightTokens)
+
+  let intersection = 0
+  for (const token of leftSet) {
+    if (rightSet.has(token)) {
+      intersection += 1
+    }
+  }
+
+  const union = leftSet.size + rightSet.size - intersection
+  if (union === 0) {
+    return 0
+  }
+
+  return intersection / union
+}
 
 function truncateText(value: string, maxChars: number): string {
   if (value.length <= maxChars) {
@@ -203,9 +244,117 @@ function buildFallbackAgentOutput(
   }
 }
 
+function buildPlatformSpecificCta(platform: Platform): string {
+  if (platform === "linkedin") {
+    return "Hvilken erfaring har du selv med dette i praksis?"
+  }
+  if (platform === "instagram") {
+    return "Gem opslaget og del din vinkel i kommentarfeltet."
+  }
+  if (platform === "tiktok") {
+    return "Skriv “del 2” i kommentaren, hvis du vil have næste take."
+  }
+  if (platform === "facebook") {
+    return "Hvad tænker du om den her vinkel? Del gerne din holdning."
+  }
+  return "Enig eller uenig? Svar med din vinkel."
+}
+
+function diversifyOutputIfNeeded(
+  output: AgentOutput,
+  brief: ContentBrief,
+  guidance: SupervisorGuidance
+): AgentOutput {
+  const limits = platformOutputLimits[output.platform]
+  const platformIndex = platformOrder.indexOf(output.platform)
+  const keyPoint = brief.keyPoints[platformIndex] ?? brief.keyPoints[0] ?? brief.coreMessage
+  const angle = guidance.platformAngles[output.platform]
+
+  let hook = truncateText(`${angle}`, limits.maxHookChars)
+  let body = truncateText(
+    `${keyPoint}\n\nPlatformfokus: ${angle}\n\nMålgruppe: ${brief.targetAudience}`,
+    limits.maxBodyChars
+  )
+  let cta = truncateText(buildPlatformSpecificCta(output.platform), limits.maxCtaChars)
+
+  if (limits.totalMaxChars) {
+    const fitted = fitWithinTotalLimit(hook, body, cta, limits.totalMaxChars)
+    hook = fitted.hook
+    body = fitted.body
+    cta = fitted.cta
+  }
+
+  return {
+    ...output,
+    hook,
+    body,
+    cta,
+  }
+}
+
+function enforcePlatformDiversity(
+  outputs: AgentOutput[],
+  brief: ContentBrief,
+  guidance: SupervisorGuidance
+): {
+  outputs: AgentOutput[]
+  adjustedPlatforms: Platform[]
+  maxSimilarityScore: number
+} {
+  const normalizedByPlatform = new Map<Platform, string[]>()
+
+  for (const output of outputs) {
+    normalizedByPlatform.set(
+      output.platform,
+      normalizeTextForSimilarity(`${output.hook}\n${output.body}\n${output.cta}`)
+    )
+  }
+
+  const platformsToAdjust = new Set<Platform>()
+  let maxSimilarityScore = 0
+
+  for (let leftIndex = 0; leftIndex < outputs.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < outputs.length; rightIndex += 1) {
+      const left = outputs[leftIndex]
+      const right = outputs[rightIndex]
+      const leftTokens = normalizedByPlatform.get(left.platform) ?? []
+      const rightTokens = normalizedByPlatform.get(right.platform) ?? []
+      const similarityScore = calculateJaccardSimilarity(leftTokens, rightTokens)
+      maxSimilarityScore = Math.max(maxSimilarityScore, similarityScore)
+
+      if (similarityScore >= DIVERSITY_SIMILARITY_THRESHOLD) {
+        platformsToAdjust.add(left.platform)
+        platformsToAdjust.add(right.platform)
+      }
+    }
+  }
+
+  if (platformsToAdjust.size === 0) {
+    return {
+      outputs,
+      adjustedPlatforms: [],
+      maxSimilarityScore,
+    }
+  }
+
+  const diversified = outputs.map((output) => {
+    if (!platformsToAdjust.has(output.platform)) {
+      return output
+    }
+    return diversifyOutputIfNeeded(output, brief, guidance)
+  })
+
+  return {
+    outputs: diversified,
+    adjustedPlatforms: platformOrder.filter((platform) => platformsToAdjust.has(platform)),
+    maxSimilarityScore,
+  }
+}
+
 type AgentGeneratorInput = {
   brief: ContentBrief
   brandProfile: BrandProfile
+  supervisorGuidance?: SupervisorGuidance
 }
 
 const platformGenerators: Record<
@@ -226,6 +375,7 @@ type RegeneratePlatformDraftResult =
 
 const ACTION_GENERATE_PLATFORM_DRAFTS = "agent_engine.generate_platform_drafts"
 const ACTION_REGENERATE_PLATFORM_DRAFT = "agent_engine.regenerate_platform_draft"
+const ACTION_SUPERVISOR_GUIDANCE = "agent_engine.supervisor_guidance"
 const PLATFORM_AGENT_MODEL = "gpt-4o"
 
 function resolveOnboardingErrorCode(
@@ -239,6 +389,42 @@ function resolveOnboardingErrorCode(
     return "missing_dependency"
   }
   return "not_found"
+}
+
+async function resolveSupervisorGuidance(input: {
+  brief: ContentBrief
+  brandProfile: BrandProfile
+  requestId: string
+}): Promise<{
+  guidance: SupervisorGuidance
+  usedFallback: boolean
+}> {
+  try {
+    const guidance = await generateSupervisorGuidance({
+      brief: input.brief,
+      brandProfile: input.brandProfile,
+    })
+
+    return {
+      guidance,
+      usedFallback: false,
+    }
+  } catch (error: unknown) {
+    logActionWarn({
+      requestId: input.requestId,
+      actionName: ACTION_SUPERVISOR_GUIDANCE,
+      userId: input.brandProfile.userId,
+      model: PLATFORM_AGENT_MODEL,
+      errorCode: "external_service_error",
+      errorType: error instanceof Error ? error.name : "UnknownError",
+      message: "Supervisor guidance fallback was used.",
+    })
+
+    return {
+      guidance: buildFallbackSupervisorGuidance(input.brief),
+      usedFallback: true,
+    }
+  }
 }
 
 export async function generatePlatformDraftsAction(
@@ -331,9 +517,16 @@ export async function generatePlatformDraftsAction(
       })
     }
 
+    const supervisorResult = await resolveSupervisorGuidance({
+      brief: parsedBrief.data,
+      brandProfile,
+      requestId,
+    })
+
     const generatorInput = {
       brief: parsedBrief.data,
       brandProfile,
+      supervisorGuidance: supervisorResult.guidance,
     }
 
     const settledDrafts = await Promise.all(
@@ -378,6 +571,24 @@ export async function generatePlatformDraftsAction(
       })
     }
 
+    const diversityResult = enforcePlatformDiversity(
+      parsedOutputs.data,
+      parsedBrief.data,
+      supervisorResult.guidance
+    )
+    const diversityValidated = platformOutputsSchema.safeParse(diversityResult.outputs)
+    if (!diversityValidated.success) {
+      return fail({
+        code: "validation_failed",
+        message: "Diversity-guardrail output kunne ikke valideres.",
+        retryable: false,
+        userId: brandProfile.userId,
+        metadata: {
+          validationIssueCount: diversityValidated.error.issues.length,
+        },
+      })
+    }
+
     if (fallbackPlatforms.length > 0) {
       logActionWarn({
         requestId,
@@ -394,6 +605,21 @@ export async function generatePlatformDraftsAction(
       })
     }
 
+    if (diversityResult.adjustedPlatforms.length > 0) {
+      logActionWarn({
+        requestId,
+        actionName: ACTION_GENERATE_PLATFORM_DRAFTS,
+        userId: brandProfile.userId,
+        model: PLATFORM_AGENT_MODEL,
+        message: "Diversity guardrail adjusted similar platform drafts.",
+        metadata: {
+          adjustedPlatforms: diversityResult.adjustedPlatforms,
+          maxSimilarityScore: Number(diversityResult.maxSimilarityScore.toFixed(3)),
+          threshold: DIVERSITY_SIMILARITY_THRESHOLD,
+        },
+      })
+    }
+
     logActionInfo({
       requestId,
       actionName: ACTION_GENERATE_PLATFORM_DRAFTS,
@@ -402,12 +628,16 @@ export async function generatePlatformDraftsAction(
       latencyMs: resolveLatencyMs(),
       message: "Platform drafts generated successfully.",
       metadata: {
-        platformCount: parsedOutputs.data.length,
+        platformCount: diversityValidated.data.length,
         fallbackCount: fallbackPlatforms.length,
+        supervisorFallback: supervisorResult.usedFallback,
+        supervisorPromptVersion: supervisorResult.guidance.promptVersion,
+        diversityAdjustedCount: diversityResult.adjustedPlatforms.length,
+        maxSimilarityScore: Number(diversityResult.maxSimilarityScore.toFixed(3)),
       },
     })
 
-    return createActionSuccess(requestId, { outputs: parsedOutputs.data })
+    return createActionSuccess(requestId, { outputs: diversityValidated.data })
   } catch (error: unknown) {
     return fail({
       code: "external_service_error",
@@ -516,6 +746,12 @@ export async function regeneratePlatformDraftAction(
       })
     }
 
+    const supervisorResult = await resolveSupervisorGuidance({
+      brief: parsedBrief.data,
+      brandProfile,
+      requestId,
+    })
+
     let fallbackErrorType: string | null = null
     let usedFallback = false
     const output = await (async (): Promise<AgentOutput> => {
@@ -523,6 +759,7 @@ export async function regeneratePlatformDraftAction(
         return await platformGenerators[parsedPlatform.data]({
           brief: parsedBrief.data,
           brandProfile,
+          supervisorGuidance: supervisorResult.guidance,
         })
       } catch (error: unknown) {
         usedFallback = true
@@ -570,6 +807,8 @@ export async function regeneratePlatformDraftAction(
       message: "Platform draft regenerated successfully.",
       metadata: {
         fallbackApplied: usedFallback,
+        supervisorFallback: supervisorResult.usedFallback,
+        supervisorPromptVersion: supervisorResult.guidance.promptVersion,
       },
     })
 

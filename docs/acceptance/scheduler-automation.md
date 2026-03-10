@@ -2,6 +2,11 @@
 
 Use this checklist before releasing scheduler automation changes.
 
+Related content quality checks now run in generation:
+
+- Creative supervisor guidance for platform angles
+- Diversity guardrail for high-overlap draft outputs
+
 ## Scope
 
 Validates:
