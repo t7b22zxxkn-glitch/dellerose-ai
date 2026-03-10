@@ -44,7 +44,7 @@ Required Vercel env vars:
 - `OPENAI_API_KEY`
 - `BRAIN_DUMP_SMOKE_KEY` (optional but recommended for smoke endpoint auth)
 - `SCHEDULER_WORKER_KEY` (optional for manual worker triggers)
-- `CRON_SECRET` (recommended for Vercel cron auth)
+- `CRON_SECRET` (kun relevant hvis du bruger Vercel Cron på et plan der understøtter det)
 - `SCHEDULER_SIMULATION_MODE=true` (recommended in pre-live test env; marks jobs as published without real platform posting)
 - `ENABLE_DEV_USER_FALLBACK` + `DELLEROSE_DEV_USER_ID` (optional local-only fallback)
 
@@ -52,6 +52,11 @@ Scheduler worker endpoint:
 
 - `GET /api/scheduler/publish-worker`
 - `POST /api/scheduler/publish-worker`
+
+Note:
+
+- Hvis dit Vercel-plan ikke understøtter Cron Jobs, behold `vercel.json` uden `crons`
+  og trig endpointet via ekstern scheduler (fx GitHub Action, UptimeRobot eller cron-job på server).
 
 Auth options:
 
