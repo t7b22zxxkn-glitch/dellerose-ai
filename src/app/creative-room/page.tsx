@@ -8,7 +8,7 @@ import {
   getPersistedWorkflowList,
   getPersistedWorkflowSnapshotById,
 } from "@/features/workflow/queries"
-import { requireAuthenticatedUser } from "@/lib/auth/guards"
+import { requireApprovedBrandBlueprint, requireAuthenticatedUser } from "@/lib/auth/guards"
 
 type CreativeRoomPageProps = {
   searchParams?: Promise<{
@@ -20,6 +20,7 @@ export default async function CreativeRoomPage({
   searchParams,
 }: CreativeRoomPageProps) {
   await requireAuthenticatedUser("/creative-room")
+  await requireApprovedBrandBlueprint("/creative-room")
   const workflowList = await getPersistedWorkflowList()
   const resolvedSearchParams = searchParams ? await searchParams : undefined
   const requestedWorkflowId = resolvedSearchParams?.workflow

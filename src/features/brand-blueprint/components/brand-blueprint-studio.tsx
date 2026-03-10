@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useMemo } from "react"
 import { AlertCircle, CheckCircle2, Loader2, Mic, RefreshCcw, Square } from "lucide-react"
 
@@ -22,6 +23,8 @@ import { Textarea } from "@/components/ui/textarea"
 
 type BrandBlueprintStudioProps = {
   bootstrap: BrandBlueprintBootstrap
+  continuePath?: string
+  gateNotice?: string | null
 }
 
 function stageLabel(stage: string): string {
@@ -40,7 +43,11 @@ function stageLabel(stage: string): string {
   return "Klar"
 }
 
-export function BrandBlueprintStudio({ bootstrap }: BrandBlueprintStudioProps) {
+export function BrandBlueprintStudio({
+  bootstrap,
+  continuePath,
+  gateNotice,
+}: BrandBlueprintStudioProps) {
   const studio = useBrandBlueprintStudio(bootstrap.activeBlueprint)
 
   const progressLabel = useMemo(
@@ -59,6 +66,12 @@ export function BrandBlueprintStudio({ bootstrap }: BrandBlueprintStudioProps) {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {gateNotice ? (
+            <Alert>
+              <AlertTitle>Adgang kræver godkendt Brand Blueprint</AlertTitle>
+              <AlertDescription>{gateNotice}</AlertDescription>
+            </Alert>
+          ) : null}
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Vælg retning</p>
           <div className="grid gap-2 sm:grid-cols-3">
             {BRAND_BLUEPRINT_PATH_OPTIONS.map((option) => (
@@ -374,6 +387,16 @@ export function BrandBlueprintStudio({ bootstrap }: BrandBlueprintStudioProps) {
               >
                 {studio.isEditingManual ? "Luk redigering" : "Redigér manuelt"}
               </Button>
+              {studio.activeBlueprint.status === "approved" && continuePath ? (
+                <Button asChild variant="outline">
+                  <Link href={continuePath}>Fortsæt til næste step</Link>
+                </Button>
+              ) : null}
+              {studio.activeBlueprint.status === "approved" ? (
+                <Button asChild variant="outline">
+                  <Link href="/ideas">Giv mig en idé</Link>
+                </Button>
+              ) : null}
             </div>
           </CardContent>
         </Card>

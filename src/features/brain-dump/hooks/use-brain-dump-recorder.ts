@@ -81,6 +81,7 @@ export function useBrainDumpRecorder(): UseBrainDumpRecorderState &
   const setBrainDumpResult = useWorkflowStore((state) => state.setBrainDumpResult)
   const setWorkflowDrafts = useWorkflowStore((state) => state.setDrafts)
   const resetWorkflow = useWorkflowStore((state) => state.resetWorkflow)
+  const workflowId = useWorkflowStore((state) => state.workflowId)
 
   const isUnmountingRef = useRef(false)
   const recorderRef = useRef<MediaRecorder | null>(null)
@@ -297,7 +298,7 @@ export function useBrainDumpRecorder(): UseBrainDumpRecorderState &
       setIsGeneratingDrafts(true)
       setPlatformDraftErrorMessage(null)
 
-      const result = await generatePlatformDraftsAction(brief)
+      const result = await generatePlatformDraftsAction(brief, workflowId)
 
       if (!result.success) {
         setPlatformDrafts([])
@@ -315,7 +316,7 @@ export function useBrainDumpRecorder(): UseBrainDumpRecorderState &
     } finally {
       setIsGeneratingDrafts(false)
     }
-  }, [brief, setWorkflowDrafts, stage])
+  }, [brief, setWorkflowDrafts, stage, workflowId])
 
   const setAttachedMediaFiles = useCallback((files: File[]) => {
     const normalized = files.slice(0, 4)

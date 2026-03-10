@@ -4,8 +4,28 @@ import { BrandBlueprintStudio } from "@/features/brand-blueprint/components/bran
 import { getBrandBlueprintBootstrapForCurrentUser } from "@/features/brand-blueprint/service"
 import { requireAuthenticatedUser } from "@/lib/auth/guards"
 
-export default async function BrandBlueprintPage() {
+type BrandBlueprintPageProps = {
+  searchParams?: Promise<{
+    next?: string
+    reason?: string
+  }>
+}
+
+function toSafeNextPath(candidate: string | undefined): string | null {
+  if (candidate && candidate.startsWith("/") && !candidate.startsWith("//")) {
+    return candidate
+  }
+  return null
+}
+
+export default async function BrandBlueprintPage({ searchParams }: BrandBlueprintPageProps) {
   await requireAuthenticatedUser("/brand-blueprint")
+  const resolvedSearchParams = searchParams ? await searchParams : undefined
+  const continuePath = toSafeNextPath(resolvedSearchParams?.next)
+  const gateNotice =
+    resolvedSearchParams?.reason === "blueprint-required"
+      ? "Du skal have et godkendt Brand Blueprint før du kan fortsætte i content-flowet."
+      : null
   const bootstrap = await getBrandBlueprintBootstrapForCurrentUser()
 
   return (
@@ -22,7 +42,11 @@ export default async function BrandBlueprintPage() {
         </p>
       </section>
 
-      <BrandBlueprintStudio bootstrap={bootstrap} />
+      <BrandBlueprintStudio
+        bootstrap={bootstrap}
+        continuePath={continuePath ?? undefined}
+        gateNotice={gateNotice}
+      />
     </main>
   )
 }
